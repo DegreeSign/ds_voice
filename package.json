@@ -1,6 +1,6 @@
 {
     "name": "@degreesign/voice",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Offline speech recognition and transcription for the browser and Node.js with the SenseVoice and Whisper models",
     "main": "dist/node/degreesign.node.min.js",
     "browser": "dist/browser/degreesign.min.js",
@@ -29,6 +29,9 @@
     ],
     "author": "DegreeSign",
     "license": "MIT",
+    "publishConfig": {
+        "access": "public"
+    },
     "bugs": {
         "url": "https://github.com/DegreeSign/ds_voice/issues"
     },
