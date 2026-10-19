@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Voice models recorder</title>
+        <link rel="stylesheet" href="record.css" />
+    </head>
+    <body>
+        <main class="page">
+            <h1 class="title">Voice models recorder</h1>
+            <p class="hint">
+                Run <code>yarn build</code> and
+                <code>node test/example/serve.cjs</code>,
+                then open this page. Press record, speak one phrase, then press
+                again. Every listed model transcribes the same clip, so the
+                texts are directly comparable. Choose a language to keep only
+                the models that support it, or leave auto detect on for every
+                model. Models download once and stay in the browser cache.
+                Re-record cancels the remaining models and starts a new clip.
+            </p>
+            <div class="controls">
+                <button class="record_button" id="record" type="button">
+                    Record
+                </button>
+                <button
+                    class="record_button record_button_secondary"
+                    id="rerecord"
+                    type="button"
+                    disabled
+                >
+                    Re-record
+                </button>
+                <label class="language_field">
+                    Language
+                    <select class="language_select" id="language"></select>
+                </label>
+            </div>
+            <p class="status_text" id="status" role="status">Ready.</p>
+            <audio class="playback" id="playback" controls></audio>
+            <table class="results_table">
+                <thead class="results_head">
+                    <tr class="results_row">
+                        <th class="results_cell results_cell_head">Model</th>
+                        <th class="results_cell results_cell_head">State</th>
+                        <th class="results_cell results_cell_head">Decode time</th>
+                        <th class="results_cell results_cell_head">Text</th>
+                    </tr>
+                </thead>
+                <tbody id="results"></tbody>
+            </table>
+        </main>
+        <script src="../../dist/browser/degreesign.min.js"></script>
+        <script src="record.js"></script>
+    </body>
+</html>

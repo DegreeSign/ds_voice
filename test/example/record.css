@@ -1,0 +1,135 @@
+:root {
+    --page_background: #f4f4f8;
+    --page_text: #1c1c22;
+    --panel_background: #ffffff;
+    --accent: #2f5cff;
+    --accent_live: #d62c3f;
+    --muted_text: #666673;
+    --line: #d9d9e2;
+}
+
+body {
+    margin: 0;
+    background: var(--page_background);
+    color: var(--page_text);
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 24px;
+}
+
+.title {
+    margin: 0 0 8px;
+    font-size: 32px;
+}
+
+.hint {
+    margin: 0 0 24px;
+    color: var(--muted_text);
+}
+
+.record_button {
+    min-width: 160px;
+    padding: 16px 32px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--panel_background);
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.record_button_live {
+    background: var(--accent_live);
+}
+
+.record_button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.record_button_secondary {
+    border: 1px solid var(--accent);
+    background: var(--panel_background);
+    color: var(--accent);
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.language_field {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    color: var(--muted_text);
+}
+
+.language_select {
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel_background);
+    color: var(--page_text);
+    font-size: 16px;
+}
+
+.status_text {
+    margin: 16px 0;
+    color: var(--muted_text);
+}
+
+.playback {
+    display: none;
+    width: 100%;
+    margin: 0 0 16px;
+}
+
+.playback_ready {
+    display: block;
+}
+
+.results_table {
+    width: 100%;
+    margin-top: 8px;
+    border-collapse: collapse;
+    background: var(--panel_background);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.results_head {
+    text-align: left;
+    background: var(--page_background);
+}
+
+.results_row {
+    border-bottom: 1px solid var(--line);
+}
+
+.results_cell {
+    padding: 8px 16px;
+    text-align: left;
+    vertical-align: top;
+    font-weight: normal;
+}
+
+.results_cell_head {
+    font-weight: 600;
+}
+
+.results_model {
+    white-space: nowrap;
+}
+
+.results_text {
+    overflow-wrap: anywhere;
+}
