@@ -108,7 +108,9 @@ const
                 if (
                     dtype !== "F32" &&
                     dtype !== "F16" &&
-                    dtype !== "Q8_0"
+                    dtype !== "Q8_0" &&
+                    dtype !== "Q4_K" &&
+                    dtype !== "Q6_K"
                 ) {
                     throw new Error(`unsupported tensor ${name} ${dtype}`);
                 }

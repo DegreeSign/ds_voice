@@ -393,6 +393,46 @@ const
         }
         return out;
     },
+    /** Build one Q4_K super block of 256 values. */
+    q4KBlock = (options: {
+        d: number;
+        dmin: number;
+        scales: number[];
+        mins: number[];
+        quants: number;
+    }): Uint8Array => {
+        const
+            out = new Uint8Array(144),
+            view = new DataView(out.buffer),
+            { scales, mins } = options;
+        view.setUint16(0, f32ToF16(options.d), true);
+        view.setUint16(2, f32ToF16(options.dmin), true);
+        for (let j = 0; j < 4; j += 1) {
+            out[4 + j] = (scales[j] & 63) | ((scales[j + 4] >> 4) << 6);
+            out[8 + j] = (mins[j] & 63) | ((mins[j + 4] >> 4) << 6);
+            out[12 + j] = (scales[j + 4] & 15) | ((mins[j + 4] & 15) << 4);
+        }
+        out.fill(options.quants, 16);
+        return out;
+    },
+    /** Build one Q6_K super block of 256 values. */
+    q6KBlock = (options: {
+        d: number;
+        scales: number[];
+        ql: number;
+        qh: number;
+    }): Uint8Array => {
+        const
+            out = new Uint8Array(210),
+            view = new DataView(out.buffer);
+        out.fill(options.ql, 0, 128);
+        out.fill(options.qh, 128, 192);
+        for (let i = 0; i < 16; i += 1) {
+            out[192 + i] = options.scales[i] & 255;
+        }
+        view.setUint16(208, f32ToF16(options.d), true);
+        return out;
+    },
     /** Encode numbers as little endian i64 bytes. */
     i64Data = (values: number[]): Uint8Array => {
         const
@@ -1419,7 +1459,7 @@ const definitions: Array<{
                         model: ModelId.WhisperBase,
                         language: Language.auto,
                     }).weightFile,
-                    "whisper-base-Q8_0.gguf",
+                    "whisper-base-Q4_K_M.gguf",
                     "quantized weight",
                 );
                 assertEqual(
@@ -2020,7 +2060,45 @@ const definitions: Array<{
                 );
                 assertEqual(ggmlTypeName(0), "F32", "f32 name");
                 assertEqual(ggmlTypeName(8), "Q8_0", "q8 name");
+                assertEqual(ggmlTypeName(12), "Q4_K", "q4 name");
+                assertEqual(ggmlTypeName(14), "Q6_K", "q6 name");
+                assertEqual(ggmlTypeName(2), "ggml:2", "other name");
                 assertEqual(GGUF_CACHE_BYTES, 128 * 1024 * 1024, "cache budget");
+                const
+                    narrow = parseGguf({
+                        bytes: ggufBytes({
+                            tensors: [{
+                                name: "bad",
+                                dims: [128],
+                                type: 12,
+                                data: new Uint8Array(72),
+                            }],
+                        }),
+                    }),
+                    other = parseGguf({
+                        bytes: ggufBytes({
+                            tensors: [{
+                                name: "other",
+                                dims: [32],
+                                type: 2,
+                                data: new Uint8Array(18),
+                            }],
+                        }),
+                    });
+                assertThrows(
+                    () => readGgufTensor({
+                        file: narrow,
+                        info: narrow.tensors.get("bad")!,
+                    }),
+                    "q4 row width",
+                );
+                assertThrows(
+                    () => readGgufTensor({
+                        file: other,
+                        info: other.tensors.get("other")!,
+                    }),
+                    "unsupported ggml type",
+                );
                 const
                     source = file.tensors.get("dec.token_embd.weight"),
                     f32 = source
@@ -2233,6 +2311,32 @@ const definitions: Array<{
                             data: f16Data([1, 0.5]),
                         },
                         { name: "q8t", dims: [32], type: 8, data: q8 },
+                        {
+                            name: "q4t",
+                            dims: [256],
+                            type: 12,
+                            data: q4KBlock({
+                                d: 1,
+                                dmin: 0.5,
+                                scales: [1, 2, 3, 4, 1, 2, 3, 4],
+                                mins: [0, 2, 0, 0, 0, 0, 0, 0],
+                                quants: 0x21,
+                            }),
+                        },
+                        {
+                            name: "q6t",
+                            dims: [256],
+                            type: 14,
+                            data: q6KBlock({
+                                d: 1,
+                                scales: [
+                                    1, 2, 3, 4, 5, 6, 7, 8,
+                                    9, 10, 11, 12, 13, 14, 15, 16,
+                                ],
+                                ql: 0x21,
+                                qh: 0xe4,
+                            }),
+                        },
                     ],
                 });
                 const weights = createGgufWeights({ file: parseGguf({ bytes }) });
@@ -2242,6 +2346,22 @@ const definitions: Array<{
                 assertEqual(dequant.length, 32, "q8 length");
                 assertClose(dequant[0], 1, "q8 first");
                 assertClose(dequant[31], 32, "q8 last");
+                const q4 = weights.f32("q4t");
+                assertEqual(q4.length, 256, "q4 length");
+                assertClose(q4[0], 1, "q4 first");
+                assertClose(q4[32], 3, "q4 second");
+                assertClose(q4[64], 3, "q4 third");
+                assertClose(q4[96], 8, "q4 fourth");
+                assertClose(q4[160], 4, "q4 fifth");
+                assertClose(q4[224], 8, "q4 last");
+                const q6 = weights.f32("q6t");
+                assertEqual(q6.length, 256, "q6 length");
+                assertClose(q6[0], -31, "q6 first");
+                assertClose(q6[32], -45, "q6 second");
+                assertClose(q6[64], 10, "q6 third");
+                assertClose(q6[96], 126, "q6 fourth");
+                assertClose(q6[128], -279, "q6 fifth");
+                assertClose(q6[224], 270, "q6 last");
                 assertEqual(weights.shape("f32t")[0], 2, "shape");
                 assert(weights.names().includes("f32t"), "names");
                 assertThrows(() => weights.f32("missing"), "missing");
@@ -2285,7 +2405,7 @@ const definitions: Array<{
                         bytes: {
                             [checkpointKey({
                                 checkpoint: ModelId.SenseVoiceSmall,
-                                file: "SenseVoiceSmall-Q8_0.gguf",
+                                file: "SenseVoiceSmall-Q4_K_M.gguf",
                             })]: senseVoiceGguf(config),
                         },
                     }),
@@ -2310,7 +2430,7 @@ const definitions: Array<{
                         bytes: {
                             [checkpointKey({
                                 checkpoint: ModelId.SenseVoiceSmall,
-                                file: "SenseVoiceSmall-Q8_0.gguf",
+                                file: "SenseVoiceSmall-Q4_K_M.gguf",
                             })]: senseVoiceGguf(config),
                         },
                     }),
@@ -2787,7 +2907,7 @@ const definitions: Array<{
                             throw new Error("stream fallback used");
                         },
                         remove: async (inner) => {
-                            manifests.delete(inner);
+                            manifests.delete(inner); // @ts-ignore
                             for (const chunk of [...chunks.keys()]) {
                                 if (chunk.startsWith(`${inner}:`)) {
                                     chunks.delete(chunk);
@@ -2903,7 +3023,7 @@ const definitions: Array<{
                         bytes: {
                             [checkpointKey({
                                 checkpoint: ModelId.SenseVoiceSmall,
-                                file: "SenseVoiceSmall-Q8_0.gguf",
+                                file: "SenseVoiceSmall-Q4_K_M.gguf",
                             })]: senseVoiceGguf(config),
                         },
                     }),
@@ -2941,7 +3061,7 @@ const definitions: Array<{
                 assertEqual(
                     await store.exists(checkpointKey({
                         checkpoint: ModelId.SenseVoiceSmall,
-                        file: "SenseVoiceSmall-Q8_0.gguf",
+                        file: "SenseVoiceSmall-Q4_K_M.gguf",
                     })),
                     false,
                     "deleted",
@@ -2957,7 +3077,7 @@ const definitions: Array<{
                         bytes: {
                             [checkpointKey({
                                 checkpoint: ModelId.SenseVoiceSmall,
-                                file: "SenseVoiceSmall-Q8_0.gguf",
+                                file: "SenseVoiceSmall-Q4_K_M.gguf",
                             })]: senseVoiceGguf(config),
                         },
                     }),

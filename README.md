@@ -219,8 +219,8 @@ requests to enable resumable, parallel downloads.
 
 | `ModelId` | Family | Languages | Weights |
 | --------- | ------ | --------- | ------- |
-| `SenseVoiceSmall` | sensevoice | zh, yue, en, ja, ko | about 253 MB, Q8_0 |
-| `WhisperBase` | whisper | multilingual, English | about 85 MB, Q8_0 |
+| `SenseVoiceSmall` | sensevoice | zh, yue, en, ja, ko | about 146 MB, Q4_K_M |
+| `WhisperBase` | whisper | multilingual, English | about 59 MB, Q4_K_M |
 
 Whisper base is the default. It is the autoregressive encoder and decoder with
 text, segment and word timestamps, DTW word alignment and long-form chunking.
@@ -274,7 +274,7 @@ The model files are cached per platform:
 
 Weight files are stored as fixed size binary chunks with a small manifest, and
 text files as plain JSON. On browsers the chunks live in IndexedDB as binary
-records, so a 253 MB model occupies about 253 MB instead of base64 text. A
+records, so a 146 MB model occupies about 146 MB instead of base64 text. A
 `usage.json` record tracks the size and last use of each model for the disk
 budget. The two libraries are bundled into the output, so the published package
 has no runtime dependencies.
@@ -296,8 +296,8 @@ worker because the split wait blocks its thread. Without isolation, or with
 `threads: 1`, the engine uses the single thread path. On a 3.1 GHz eight thread
 i7, an 11 second English clip decodes in about 1 second on Whisper Base and 2
 seconds on SenseVoice Small, both faster than real time. The weights are copied
-into a shared SIMD arena on first access; the Q8_0 weights are dequantized into
-a byte capped F32 cache, sized by `weightCacheMB`, 128 MB by default.
+into a shared SIMD arena on first access; the Q4_K_M weights are dequantized
+into a byte capped F32 cache, sized by `weightCacheMB`, 128 MB by default.
 
 Updates arrive as fast as inference allows. Inference blocks the calling
 thread, so in the browser run the session inside a worker for a responsive UI.
@@ -336,8 +336,8 @@ cache in IndexedDB through `@degreesign/storage`.
 
 ## Licensing
 
-Whisper weights and tokenizer data are Apache-2.0, and the Q8_0 GGUF
-conversions keep that license. The SenseVoice Q8_0 weights are distributed
+Whisper weights and tokenizer data are Apache-2.0, and the Q4_K_M GGUF
+conversions keep that license. The SenseVoice Q4_K_M weights are distributed
 under the FunASR Model Open Source License Agreement v1.1. The bundled MP3
 decoder is `minimp3`, which is CC0, together with the Apache-2.0
 `minimp3-wasm` bindings. See `THIRD_PARTIES.md`. The runtime code in this

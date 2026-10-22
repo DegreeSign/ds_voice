@@ -42,7 +42,7 @@ License. See [LICENSE](LICENSE).
 - License: Apache License 2.0
 - Sources: https://huggingface.co/handy-computer/whisper-base-gguf
   and https://huggingface.co/openai/whisper-base
-- Contents: the Q8_0 GGUF conversion of the OpenAI Whisper base checkpoint.
+- Contents: the Q4_K_M GGUF conversion of the OpenAI Whisper base checkpoint.
   The tokenizer data and configuration files are fetched from the original
   `openai/whisper-base` repository.
 
@@ -51,7 +51,7 @@ License. See [LICENSE](LICENSE).
 - License: Apache License 2.0
 - Sources: https://huggingface.co/handy-computer/whisper-base.en-gguf
   and https://huggingface.co/openai/whisper-base.en
-- Contents: the Q8_0 GGUF conversion of the OpenAI Whisper base English
+- Contents: the Q4_K_M GGUF conversion of the OpenAI Whisper base English
   checkpoint. The tokenizer data and configuration files are fetched from the
   original `openai/whisper-base.en` repository.
 
@@ -60,7 +60,7 @@ License. See [LICENSE](LICENSE).
 - License: FunASR Model Open Source License Agreement v1.1
 - Sources: https://huggingface.co/handy-computer/SenseVoiceSmall-gguf
   and https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE
-- Contents: the Q8_0 GGUF conversion of FunAudioLLM/SenseVoiceSmall by Alibaba
+- Contents: the Q4_K_M GGUF conversion of FunAudioLLM/SenseVoiceSmall by Alibaba
   Group / FunAudioLLM. The tokenizer and configuration are embedded in the same
   file.
 

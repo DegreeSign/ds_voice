@@ -17,9 +17,9 @@ const
         "special_tokens_map.json",
     ],
     /** Weight file of the multilingual Whisper checkpoint. */
-    WHISPER_WEIGHT = "whisper-base-Q8_0.gguf",
+    WHISPER_WEIGHT = "whisper-base-Q4_K_M.gguf",
     /** Weight file of the English Whisper checkpoint. */
-    WHISPER_EN_WEIGHT = "whisper-base.en-Q8_0.gguf",
+    WHISPER_EN_WEIGHT = "whisper-base.en-Q4_K_M.gguf",
     /** Every supported checkpoint. */
     MODEL_SPECS: Record<CheckpointId, ModelSpec> = {
         [ModelId.SenseVoiceSmall]: {
@@ -27,9 +27,9 @@ const
             checkpoint: ModelId.SenseVoiceSmall,
             repo: "handy-computer/SenseVoiceSmall-gguf",
             family: ModelFamily.SenseVoice,
-            weightFile: "SenseVoiceSmall-Q8_0.gguf",
-            weightBytes: 252_684_608,
-            files: ["SenseVoiceSmall-Q8_0.gguf"],
+            weightFile: "SenseVoiceSmall-Q4_K_M.gguf",
+            weightBytes: 145_738_304,
+            files: ["SenseVoiceSmall-Q4_K_M.gguf"],
         },
         [ModelId.WhisperBase]: {
             id: ModelId.WhisperBase,
@@ -38,7 +38,7 @@ const
             textRepo: "openai/whisper-base",
             family: ModelFamily.Whisper,
             weightFile: WHISPER_WEIGHT,
-            weightBytes: 84_962_880,
+            weightBytes: 58_870_848,
             files: [WHISPER_WEIGHT, ...WHISPER_FILES],
         },
         "whisper-base.en": {
@@ -48,7 +48,7 @@ const
             textRepo: "openai/whisper-base.en",
             family: ModelFamily.Whisper,
             weightFile: WHISPER_EN_WEIGHT,
-            weightBytes: 84_886_208,
+            weightBytes: 58_794_272,
             files: [WHISPER_EN_WEIGHT, ...WHISPER_FILES],
         },
     },
