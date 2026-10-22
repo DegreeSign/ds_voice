@@ -84,11 +84,13 @@ const createSharedMemory = (): WebAssembly.Memory | null => {
     }
 },
     /** Create a worker pool bound to one shared memory. */
-    createPool = (options: CreatePoolOptions): TensorPool | null => {
-        const
+    createPool = (options: CreatePoolOptions): TensorPool | null => {        const
             threads = Math.max(
                 1,
-                Math.min(MAX_THREADS, availableParallelism()),
+                Math.min(
+                    MAX_THREADS,
+                    options.threads ?? availableParallelism(),
+                ),
             ),
             buffer = options.memory.buffer;
         if (threads < 2 || !(buffer instanceof SharedArrayBuffer)) {
@@ -178,6 +180,10 @@ const createSharedMemory = (): WebAssembly.Memory | null => {
             },
             close,
         };
-    };
+    },
+    /** Asynchronous form of createPool, Node starts synchronously. */
+    createPoolAsync = async (
+        options: CreatePoolOptions,
+    ): Promise<TensorPool | null> => createPool(options);
 
-export { createPool, createSharedMemory };
+export { createPool, createPoolAsync, createSharedMemory };

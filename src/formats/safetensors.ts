@@ -91,6 +91,8 @@ const
         store: TensorStore;
         vocabSize: number;
         dModel: number;
+        /** Accept the quantized dtypes of a GGUF checkpoint. */
+        allowQuantized?: boolean;
     }): void => {
         const { store, vocabSize, dModel } = options;
         if (store.has("proj_out")) {
@@ -101,7 +103,18 @@ const
             throw new Error(`embed shape ${embed.shape.join("x")}`);
         }
         for (const name of store.names()) {
-            if (store.info(name).dtype !== "F32") {
+            const dtype = store.info(name).dtype;
+            if (options.allowQuantized) {
+                if (
+                    dtype !== "F32" &&
+                    dtype !== "F16" &&
+                    dtype !== "Q8_0"
+                ) {
+                    throw new Error(`unsupported tensor ${name} ${dtype}`);
+                }
+                continue;
+            }
+            if (dtype !== "F32") {
                 throw new Error(`non f32 tensor ${name}`);
             }
         }

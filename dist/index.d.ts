@@ -1,9 +1,4 @@
-import { Language, ModelId, TimestampMode } from "./tensor/types";
-import type { PreloadVoiceOptions, TranscribeOptions, TranscribeSession } from "./tensor/types";
-declare const 
-/** Start a streaming transcription. */
-transcribe: (options?: TranscribeOptions) => TranscribeSession, 
-/** Download and load a model ahead of time. */
-preloadVoice: (options?: PreloadVoiceOptions) => Promise<void>;
-export { transcribe, preloadVoice, Language, ModelId, TimestampMode };
+import { Language, ModelId, ProgressPhase, TimestampMode } from "./tensor/types";
+declare const transcribe: (options?: import("./tensor/types").TranscribeOptions) => import("./tensor/types").TranscribeSession, preloadVoice: (options?: import("./tensor/types").PreloadVoiceOptions) => Promise<void>, loadModel: (options?: import("./tensor/types").LoadModelOptions) => Promise<import("./tensor/types").Model>, isModelCached: (options?: import("./tensor/types").ModelOptionsBase) => Promise<boolean>;
+export { transcribe, preloadVoice, loadModel, isModelCached, Language, ModelId, ProgressPhase, TimestampMode, };
 export type { DiskBudgetOptions, DownloadProgress, ModelOptionsBase, PreloadVoiceOptions, ProgressHandler, Segment, TextSnapshot, TranscribeBase, TranscribeOptions, TranscribeSession, Transcript, TranscriptMeta, Word, } from "./tensor/types";

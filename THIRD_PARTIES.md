@@ -37,6 +37,24 @@ License. See [LICENSE](LICENSE).
 - Contents: the official OpenAI Whisper base English checkpoint, including the
   tokenizer data and configuration files from the same repository.
 
+### handy-computer/whisper-base-gguf
+
+- License: Apache License 2.0
+- Sources: https://huggingface.co/handy-computer/whisper-base-gguf
+  and https://huggingface.co/openai/whisper-base
+- Contents: the Q8_0 GGUF conversion of the OpenAI Whisper base checkpoint.
+  The tokenizer data and configuration files are fetched from the original
+  `openai/whisper-base` repository.
+
+### handy-computer/whisper-base.en-gguf
+
+- License: Apache License 2.0
+- Sources: https://huggingface.co/handy-computer/whisper-base.en-gguf
+  and https://huggingface.co/openai/whisper-base.en
+- Contents: the Q8_0 GGUF conversion of the OpenAI Whisper base English
+  checkpoint. The tokenizer data and configuration files are fetched from the
+  original `openai/whisper-base.en` repository.
+
 ### handy-computer/SenseVoiceSmall-gguf
 
 - License: FunASR Model Open Source License Agreement v1.1

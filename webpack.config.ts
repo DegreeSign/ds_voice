@@ -31,26 +31,28 @@ const
         },
         mode: "production",
     },
+    // Browser plugin set shared by the full and family entries
+    browserPlugins: NonNullable<webpack.Configuration["plugins"]> = [
+        ...(commonConfig.plugins ?? []),
+        new webpack.NormalModuleReplacementPlugin(
+            /^\.\/node$/,
+            path.resolve(__dirname, "src/store/nodeStub.ts"),
+        ),
+        new webpack.NormalModuleReplacementPlugin(
+            /^\.\/nodeFile$/,
+            path.resolve(__dirname, "src/audio/nodeFileStub.ts"),
+        ),
+        new webpack.NormalModuleReplacementPlugin(
+            /^\.\/poolNode$/,
+            path.resolve(__dirname, "src/tensor/poolBrowser.ts"),
+        ),
+    ],
     // Browser webpack configuration
     browserConfig: webpack.Configuration = {
         ...commonConfig,
         entry: "./src/index.ts",
         target: "web",
-        plugins: [
-            ...(commonConfig.plugins ?? []),
-            new webpack.NormalModuleReplacementPlugin(
-                /^\.\/node$/,
-                path.resolve(__dirname, "src/store/nodeStub.ts"),
-            ),
-            new webpack.NormalModuleReplacementPlugin(
-                /^\.\/nodeFile$/,
-                path.resolve(__dirname, "src/audio/nodeFileStub.ts"),
-            ),
-            new webpack.NormalModuleReplacementPlugin(
-                /^\.\/poolNode$/,
-                path.resolve(__dirname, "src/tensor/poolStub.ts"),
-            ),
-        ],
+        plugins: browserPlugins,
         output: {
             path: path.resolve(__dirname, "dist/browser"),
             filename: "degreesign.min.js",
@@ -59,6 +61,22 @@ const
             globalObject: "this",
         },
     },
+    /** One browser bundle with a subset of the families. */
+    familyConfig = (options: {
+        entry: string;
+        filename: string;
+        library: string;
+    }): webpack.Configuration => ({
+        ...browserConfig,
+        entry: options.entry,
+        output: {
+            path: path.resolve(__dirname, "dist/browser"),
+            filename: options.filename,
+            library: options.library,
+            libraryTarget: "umd",
+            globalObject: "this",
+        },
+    }),
     // Node webpack configuration
     nodeConfig: webpack.Configuration = {
         ...commonConfig,
@@ -84,4 +102,17 @@ const
         },
     };
 
-module.exports = [browserConfig, nodeConfig];
+module.exports = [
+    browserConfig,
+    familyConfig({
+        entry: "./src/sensevoice.ts",
+        filename: "sensevoice.min.js",
+        library: "dsVoiceSenseVoice",
+    }),
+    familyConfig({
+        entry: "./src/whisper.ts",
+        filename: "whisper.min.js",
+        library: "dsVoiceWhisper",
+    }),
+    nodeConfig,
+];

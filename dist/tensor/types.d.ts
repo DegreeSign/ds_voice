@@ -350,6 +350,32 @@ export declare enum Language {
     /** Chinese. */
     zh = "zh"
 }
+/** Chunk access used by resumable weight downloads. */
+export interface ModelPartStore {
+    /** Chunk sizes of a file, zero for a missing chunk, or null. */
+    readSizes(key: string): Promise<number[] | null>;
+    /** Record the chunk sizes, a zero marks a chunk still missing. */
+    writeSizes(options: {
+        key: string;
+        sizes: number[];
+    }): Promise<void>;
+    /** Read one chunk, or null when absent. */
+    read(options: {
+        key: string;
+        index: number;
+    }): Promise<Uint8Array | null>;
+    /** Write one chunk. */
+    write(options: {
+        key: string;
+        index: number;
+        bytes: Uint8Array;
+    }): Promise<void>;
+    /** Remove one chunk. */
+    remove(options: {
+        key: string;
+        index: number;
+    }): Promise<void>;
+}
 /** Persistence backend for the cached model files. */
 export interface ModelStore {
     /** True when a key, weights or text, is present. */
@@ -377,6 +403,8 @@ export interface ModelStore {
     remove(key: string): Promise<void>;
     /** Remove a raw key without touching its chunks, when the backend can. */
     removeRaw?(key: string): Promise<void>;
+    /** Chunk access for resumable binary downloads. */
+    parts?: ModelPartStore;
 }
 /** One fetchable model definition. */
 export interface ModelSpec {
@@ -384,8 +412,10 @@ export interface ModelSpec {
     id: ModelId;
     /** Cache key of this concrete checkpoint. */
     checkpoint: CheckpointId;
-    /** Hugging Face repository, owner and name. */
+    /** Repository that holds the weight file, owner and name. */
     repo: string;
+    /** Repository for the text files, defaults to repo. */
+    textRepo?: string;
     /** Architecture family that loads the weights. */
     family: ModelFamily;
     /** Weight file name. */
@@ -395,15 +425,26 @@ export interface ModelSpec {
     /** Every file fetched for this model. */
     files: string[];
 }
-/** Progress report for one file being downloaded. */
+/** Phase reported by the load progress. */
+export declare enum ProgressPhase {
+    /** Bytes are moving from the network into the store. */
+    download = "download",
+    /** The stored file is checked against its expected size. */
+    verify = "verify",
+    /** The stored weights are parsed and loaded. */
+    decode = "decode"
+}
+/** Progress report across every file of one checkpoint. */
 export interface DownloadProgress {
     /** Model being downloaded. */
     model: ModelId;
-    /** File inside the repository. */
+    /** File currently being downloaded. */
     file: string;
-    /** Bytes received so far. */
+    /** Step the load is in. */
+    phase: ProgressPhase;
+    /** Bytes received so far, across every file. */
     loaded: number;
-    /** Expected total bytes, zero when unknown. */
+    /** Expected total bytes across every file. */
     total: number;
     /** Fraction of the total, zero when the total is unknown. */
     ratio: number;
@@ -416,7 +457,13 @@ export interface ModelOptionsBase {
     model?: ModelId;
     /** Language that chooses a checkpoint variant. */
     language?: Language;
-    /** Called for each file as it downloads. */
+    /** Override for the weights host, defaults to Hugging Face. */
+    weightsBaseUrl?: string;
+    /** F32 weight cache cap in MB, defaults to 128. */
+    weightCacheMB?: number;
+    /** Worker threads for the decode, defaults to 1. */
+    threads?: number;
+    /** Called across every file as it loads. */
     onProgress?: ProgressHandler;
 }
 /** Model selection under a cache cap. */
@@ -552,6 +599,36 @@ export interface Voice {
     deleteModel(options: DeleteModelOptions): Promise<void>;
     /** Apply the disk budget, download and load one model. */
     ensureModel(options?: EnsureModelOptions): Promise<Model>;
+    /** True when every file of a model is already stored. */
+    isModelCached(options?: ModelOptionsBase): Promise<boolean>;
+}
+/** Functions behind one model family. */
+export interface VoiceFamily {
+    /** Parse the stored weights of this family. */
+    load(options: StoreModelOptions): Promise<Model>;
+    /** Decode one buffer with this family. */
+    transcribe(options: TranscribeAudioOptions): Transcript;
+}
+/** Model families bundled into one entry. */
+export interface VoiceFamilies {
+    [ModelFamily.SenseVoice]?: VoiceFamily;
+    [ModelFamily.Whisper]?: VoiceFamily;
+}
+/** Options for building a voice over a family set. */
+export interface CreateVoiceEngineOptions {
+    families: VoiceFamilies;
+    store?: ModelStore;
+}
+/** Public functions built over one voice. */
+export interface VoiceApi {
+    /** True when every file of a model is already stored. */
+    isModelCached(options?: ModelOptionsBase): Promise<boolean>;
+    /** Download and load a model ahead of time. */
+    loadModel(options?: LoadModelOptions): Promise<Model>;
+    /** Download and load a model ahead of time. */
+    preloadVoice(options?: PreloadVoiceOptions): Promise<void>;
+    /** Start a streaming transcription. */
+    transcribe(options?: TranscribeOptions): TranscribeSession;
 }
 /** Tokenizer with the pieces needed for decoding. */
 export interface Tokenizer {
@@ -697,6 +774,17 @@ export interface GgufFile {
 export interface ParseGgufOptions {
     bytes: Uint8Array;
 }
+/** Options for reading one GGUF tensor into f32. */
+export interface ReadGgufTensorOptions {
+    file: GgufFile;
+    info: GgufTensorInfo;
+}
+/** Options for building a weight store over a GGUF file. */
+export interface CreateGgufWeightsOptions {
+    file: GgufFile;
+    /** F32 cache cap in bytes, defaults to the documented budget. */
+    cacheBytes?: number;
+}
 /** SenseVoice SAN-M encoder shape. */
 export interface SenseVoiceConfig {
     dInput: number;
@@ -760,6 +848,8 @@ export interface StoreModelOptions {
     model: ModelId;
     /** Concrete checkpoint that holds the files. */
     checkpoint: CheckpointId;
+    /** F32 weight cache cap in MB, defaults to 128. */
+    weightCacheMB?: number;
 }
 /** Options for loading a SenseVoice model from a store. */
 export interface LoadSenseVoiceOptions extends StoreModelOptions {
@@ -932,6 +1022,8 @@ export interface RelativeBiasOptions {
 /** Options for creating a worker pool over the shared kernel memory. */
 export interface CreatePoolOptions {
     memory: WebAssembly.Memory;
+    /** Requested worker count, defaults to every core. */
+    threads?: number;
 }
 /** One parallel matrix multiplication request. */
 export interface PoolMatmulOptions {

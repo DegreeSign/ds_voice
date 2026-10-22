@@ -17,6 +17,9 @@ import { computeDtw } from "./dtw";
 import { buildSegments, buildWords } from "./words";
 import { dedupeBoundary, joinText, planChunks } from "../../speech/segment";
 import { assertWhisperShape, parseSafetensors } from "../../formats/safetensors";
+import { parseGguf } from "../../formats/gguf";
+import { createWhisperWeights } from "./weights";
+import { kernelThreads } from "../../tensor/wasm";
 import { MODEL_SPECS, checkpointKey } from "../specs";
 import { Language, ModelFamily, TimestampMode } from "../../tensor/types";
 import type {
@@ -24,6 +27,7 @@ import type {
     LoadedModel,
     Segment,
     StoreModelOptions,
+    TensorStore,
     Transcript,
     WhisperWindowOptions,
     WindowResult,
@@ -40,17 +44,39 @@ const
                 checkpoint: options.checkpoint,
             },
             { model, generation, preprocessor } = await loadConfigs(source),
-            bytes = await options.store.readBytes(
+            spec = MODEL_SPECS[options.checkpoint],
+            candidates = spec.weightFile === "model.safetensors"
+                ? [spec.weightFile]
+                : [spec.weightFile, "model.safetensors"];
+        let tensors: TensorStore | null = null;
+        let quantized = false;
+        for (const file of candidates) {
+            const bytes = await options.store.readBytes(
                 checkpointKey({
                     checkpoint: options.checkpoint,
-                    file: MODEL_SPECS[options.checkpoint].weightFile,
+                    file,
                 }),
             );
-        if (bytes === null) {
-            throw new Error("missing model.safetensors");
+            if (bytes === null) {
+                continue;
+            }
+            if (file.endsWith(".gguf")) {
+                tensors = createWhisperWeights({
+                    file: parseGguf({ bytes }),
+                    cacheBytes: options.weightCacheMB === undefined
+                        ? undefined
+                        : options.weightCacheMB * 1024 * 1024,
+                });
+                quantized = true;
+            } else {
+                tensors = parseSafetensors({ bytes }).store;
+            }
+            break;
+        }
+        if (tensors === null) {
+            throw new Error("missing whisper weights");
         }
         const
-            file = parseSafetensors({ bytes }),
             tokenizer = await loadTokenizer(source),
             constants = toConstants(generation);
         assertSuppressMatch({
@@ -58,9 +84,10 @@ const
             b: generation.suppress_tokens,
         });
         assertWhisperShape({
-            store: file.store,
+            store: tensors,
             vocabSize: model.vocab_size,
             dModel: model.d_model,
+            allowQuantized: quantized,
         });
         return {
             kind: ModelFamily.Whisper,
@@ -70,7 +97,7 @@ const
             mel: toMelConfig(preprocessor),
             melFilters: toMelFilters(preprocessor),
             tokenizer,
-            tensors: file.store,
+            tensors,
         };
     },
     /** Transcribe one audio window of at most 30 seconds. */
@@ -314,7 +341,7 @@ const
             meta: {
                 model: model.name,
                 rtf: duration > 0 ? elapsed / duration : 0,
-                threads: 1,
+                threads: kernelThreads(),
             },
         };
     };

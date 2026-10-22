@@ -1,6 +1,13 @@
 import type { AttentionOptions, Conv1dOptions, Conv2dOptions, LinearOptions, PointwiseOptions, RelativeBiasOptions, SiluOptions, WasmKernel } from "./types";
+declare const 
+/** Request the worker count used by the next pool. */
+setThreadCount: (threads?: number) => void, 
+/** Worker threads used by the current decode. */
+kernelThreads: () => number, 
+/** Create the shared kernel and worker pool before a decode. */
+prepareThreads: (threads?: number) => Promise<void>, 
 /** Shared kernel instance, null when the engine lacks SIMD. */
-declare const getKernel: () => WasmKernel | null, 
+getKernel: () => WasmKernel | null, 
 /** Reserve an f32 arena region the weights are decoded into. */
 reserveFloats: (floats: number) => Float32Array | null, 
 /** Run a linear layer with the SIMD kernel, or null to fall back. */
@@ -24,4 +31,4 @@ wasmSilu: (options: SiluOptions) => boolean,
 wasmPointwise: (options: PointwiseOptions) => Float32Array | null, 
 /** Build the relative position bias with the SIMD kernel. */
 wasmRelativeBias: (options: RelativeBiasOptions) => Float32Array | null;
-export { getKernel, reserveFloats, wasmAttention, wasmConv1d, wasmConv2d, wasmLinear, wasmPointwise, wasmRelativeBias, wasmSilu, };
+export { getKernel, kernelThreads, prepareThreads, reserveFloats, setThreadCount, wasmAttention, wasmConv1d, wasmConv2d, wasmLinear, wasmPointwise, wasmRelativeBias, wasmSilu, };

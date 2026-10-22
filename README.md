@@ -47,11 +47,18 @@ yarn add @degreesign/voice
 pnpm add @degreesign/voice
 ```
 
-The package builds to two bundles from one entry:
+The package builds to four bundles from one source:
 
 - `dist/node/degreesign.node.min.js`, the CommonJS entry used by Node.
-- `dist/browser/degreesign.min.js`, the UMD entry used by browsers, exporting
-  the `dsVoice` global.
+- `dist/browser/degreesign.min.js`, the UMD entry with both model families,
+  exporting the `dsVoice` global.
+- `dist/browser/sensevoice.min.js`, the UMD entry with only SenseVoice,
+  exporting `dsVoiceSenseVoice`.
+- `dist/browser/whisper.min.js`, the UMD entry with only Whisper, exporting
+  `dsVoiceWhisper`.
+
+A worker that serves one family can load the matching bundle and skip the other
+family, its tokenizer and its graph. The full bundle keeps the complete API.
 
 Build from source with `yarn build`; typecheck with `yarn typecheck`.
 
@@ -69,7 +76,7 @@ PCM.
 ```ts
 import { Language, ModelId, preloadVoice, transcribe } from "@degreesign/voice";
 
-await preloadVoice({ model: ModelId.SenseVoiceSmall });
+await preloadVoice({ model: ModelId.WhisperBase });
 
 const session = transcribe({ pcm, language: Language.auto });
 const live = session.fullText();
@@ -99,15 +106,18 @@ rejects through `done` because there is no microphone.
 
 ## Public API
 
-The package exports two functions and three enums.
+The package exports four functions and four enums.
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
 | `transcribe` | `transcribe(options?)` | Start a session and return it immediately. |
 | `preloadVoice` | `preloadVoice(options?)` | Download and load a model ahead of time. |
+| `loadModel` | `loadModel(options?)` | Download a model when needed and return it loaded. |
+| `isModelCached` | `isModelCached(options?)` | True when every file of the model is stored. |
 | `ModelId` | `SenseVoiceSmall`, `WhisperBase` | The supported model selection. |
 | `Language` | every language the bundled models support, plus `auto` | The supported language selection. |
 | `TimestampMode` | `none`, `segment`, `word` | The timestamp detail selection. |
+| `ProgressPhase` | `download`, `verify`, `decode` | The phase reported by a load. |
 
 `ModelId.WhisperBase` covers two checkpoints. An explicit `Language.en` loads
 the English only `openai/whisper-base.en`; every other language loads the
@@ -131,7 +141,7 @@ is `TranscribeBase` combined with the source and download fields.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `model` | `ModelId` | Model to use. Defaults to `ModelId.SenseVoiceSmall`. |
+| `model` | `ModelId` | Model to use. Defaults to `ModelId.WhisperBase`. |
 | `pcm` | `Float32Array` | 16 kHz mono samples. Highest priority source. |
 | `audioFilePath` | `string \| Blob` | Browser URL or blob, or a Node filesystem path. |
 | `language` | `Language` | Language of the audio. `WhisperBase` loads English for `Language.en`; `Language.auto` detects it. |
@@ -140,17 +150,57 @@ is `TranscribeBase` combined with the source and download fields.
 | `itn` | `boolean` | Request inverse text normalization output. |
 | `allowedDiskSpaceMB` | `number` | Cache cap in MB. Defaults to `512`. |
 | `updateIntervalMs` | `number` | Microphone update cadence. Defaults to `1000`. |
-| `onProgress` | `(progress) => void` | Download progress per file. |
+| `weightsBaseUrl` | `string` | Weights host, defaults to `https://huggingface.co`. |
+| `weightCacheMB` | `number` | F32 weight cache cap in MB. Defaults to `128`. |
+| `threads` | `number` | Worker threads for the decode. Defaults to `1`. |
+| `onProgress` | `(progress) => void` | Download progress across every file of the model. |
 
 Timing in `msElapsed` and `meta.rtf` covers decode work only. Model download,
 model load, audio decoding and waiting for audio sit outside the measurement.
 
 ### preloadVoice
 
-`preloadVoice` accepts `{ model?, language?, allowedDiskSpaceMB?, onProgress? }`
-and resolves once the model is in memory. Later `transcribe` calls reuse it.
-Pass `language: Language.en` to preload the English Whisper checkpoint; omit it
-to preload the multilingual one.
+`preloadVoice` accepts `{ model?, language?, allowedDiskSpaceMB?, weightsBaseUrl?,
+weightCacheMB?, threads?, onProgress? }` and resolves once the model is in memory. Later
+`transcribe` calls reuse it. Pass `language: Language.en` to preload the English
+Whisper checkpoint; omit it to preload the multilingual one.
+
+`loadModel` takes the same model selection and returns the loaded `Model`, while
+`isModelCached` reads the stored manifests only and never touches the network.
+Together they let a caller show a cached badge, label the download size and
+render one monotonic progress bar.
+
+`DownloadProgress` reports `phase`, plus `loaded` and `total` summed over every
+file of the checkpoint, so `ratio` never restarts at zero between files. The
+`file` field names the file currently moving.
+
+```ts
+const cached = await isModelCached({ model: ModelId.WhisperBase });
+const model = await loadModel({
+  model: ModelId.WhisperBase,
+  onProgress: ({ phase, ratio }) => {
+    console.log(phase, Math.round(ratio * 100));
+  },
+});
+```
+
+### Weights mirror
+
+Set `weightsBaseUrl` to serve the checkpoints from your own host:
+
+```ts
+await preloadVoice({
+  model: ModelId.WhisperBase,
+  weightsBaseUrl: "https://models.example.com",
+});
+```
+
+The mirror keeps the repository layout and serves every request below it:
+`<base>/<repo>/resolve/main/<file>`. Whisper keeps its GGUF weights in the
+`handy-computer` repositories and its text files in the original `openai`
+repositories, so both are requested. Send
+`Cache-Control: public, max-age=31536000, immutable` and support `Range`
+requests to enable resumable, parallel downloads.
 
 ### Types
 
@@ -160,24 +210,27 @@ to preload the multilingual one.
 | `Segment` | `start`, `end`, `text`, `words` | Sentence level segment, times in seconds. |
 | `Word` | `word`, `start`, `end` | One word with times in seconds. |
 | `TextSnapshot` | `text`, `msElapsed` | One live reading, with decode time in milliseconds. |
-| `DownloadProgress` | `model`, `file`, `loaded`, `total`, `ratio` | Progress for one file. |
+| `DownloadProgress` | `model`, `file`, `phase`, `loaded`, `total`, `ratio` | Load progress across every file. |
 | `TranscribeBase` | `pcm`, `language`, `timestamps`, `lowLatency`, `itn` | Decode parameters shared by every request. |
-| `ModelOptionsBase` | `model`, `language`, `onProgress` | Model selection shared by every load. |
-| `DiskBudgetOptions` | `model`, `language`, `onProgress`, `allowedDiskSpaceMB` | Model selection under a cache cap. |
+| `ModelOptionsBase` | `model`, `language`, `weightsBaseUrl`, `weightCacheMB`, `threads`, `onProgress` | Model selection shared by every load. |
+| `DiskBudgetOptions` | `model`, `language`, `weightsBaseUrl`, `weightCacheMB`, `threads`, `onProgress`, `allowedDiskSpaceMB` | Model selection under a cache cap. |
 
 ## Models
 
 | `ModelId` | Family | Languages | Weights |
 | --------- | ------ | --------- | ------- |
-| `SenseVoiceSmall` | sensevoice | zh, yue, en, ja, ko | about 253 MB |
-| `WhisperBase` | whisper | multilingual, English | about 290 MB |
+| `SenseVoiceSmall` | sensevoice | zh, yue, en, ja, ko | about 253 MB, Q8_0 |
+| `WhisperBase` | whisper | multilingual, English | about 85 MB, Q8_0 |
 
-SenseVoice small is the default. It is a non-autoregressive SAN-M encoder with
-a CTC head, a kaldi fbank plus LFR frontend and a SentencePiece vocabulary.
-Whisper is the autoregressive encoder and decoder with text, segment and word
-timestamps, DTW word alignment and long-form chunking. The Whisper selection
-uses `openai/whisper-base.en` for an explicit `Language.en` and
-`openai/whisper-base` for every other language, including automatic detection.
+Whisper base is the default. It is the autoregressive encoder and decoder with
+text, segment and word timestamps, DTW word alignment and long-form chunking.
+The Whisper selection uses `handy-computer/whisper-base.en-gguf` with the
+`openai/whisper-base.en` text files for an explicit `Language.en`, and
+`handy-computer/whisper-base-gguf` with the `openai/whisper-base` text files for
+every other language, including automatic detection. SenseVoice small is
+available with `model: ModelId.SenseVoiceSmall`. It is a non-autoregressive
+SAN-M encoder with a CTC head, a kaldi fbank plus LFR frontend and a
+SentencePiece vocabulary.
 
 ## Audio input
 
@@ -219,19 +272,32 @@ The model files are cached per platform:
 - Node.js uses `@degreesign/cache` to store the files under `~/.cache/decoder`.
 - Browsers use `@degreesign/storage` to store the files in IndexedDB.
 
-Weight files are stored as fixed size base64 chunks with a small manifest, and
-text files as plain JSON. A `usage.json` record tracks the size and last use of
-each model for the disk budget. The two libraries are bundled into the output,
-so the published package has no runtime dependencies.
+Weight files are stored as fixed size binary chunks with a small manifest, and
+text files as plain JSON. On browsers the chunks live in IndexedDB as binary
+records, so a 253 MB model occupies about 253 MB instead of base64 text. A
+`usage.json` record tracks the size and last use of each model for the disk
+budget. The two libraries are bundled into the output, so the published package
+has no runtime dependencies.
+
+A weight download requests four chunks at a time with HTTP `Range` headers and
+records each completed chunk in the manifest. An interrupted download resumes
+from the stored chunks, and a failed chunk is retried with backoff before the
+whole file is retried as one stream. A final size check still removes the file
+when it does not match `weightBytes`.
 
 ## Performance
 
-The graph runs on the CPU with WebAssembly SIMD kernels. Node.js splits large
-matrix multiplications across worker threads; browsers use a single thread. On
-a 3.1 GHz eight thread i7, an 11 second English clip decodes in about 1 second
-on Whisper Base and 2 seconds on SenseVoice Small, both faster than real time.
-The weights are copied into a shared SIMD arena on first access; the SenseVoice
-Q8_0 weights are dequantized there.
+The graph runs on the CPU with WebAssembly SIMD kernels. Set `threads` above
+`1` to split large matrix multiplications across worker threads. Node.js can
+use worker threads directly; browsers need cross origin isolation, served with
+`Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp`, and the session should run inside a
+worker because the split wait blocks its thread. Without isolation, or with
+`threads: 1`, the engine uses the single thread path. On a 3.1 GHz eight thread
+i7, an 11 second English clip decodes in about 1 second on Whisper Base and 2
+seconds on SenseVoice Small, both faster than real time. The weights are copied
+into a shared SIMD arena on first access; the Q8_0 weights are dequantized into
+a byte capped F32 cache, sized by `weightCacheMB`, 128 MB by default.
 
 Updates arrive as fast as inference allows. Inference blocks the calling
 thread, so in the browser run the session inside a worker for a responsive UI.
@@ -251,7 +317,8 @@ weights keep their own licenses, listed under [Licensing](#licensing).
 ### Does it run in the browser and Node.js?
 
 Yes. One entry autodetects the runtime and selects a filesystem or IndexedDB
-store, and webpack emits a CommonJS and a UMD bundle from it.
+store, and webpack emits a CommonJS bundle, a full UMD bundle and one UMD
+bundle per model family.
 
 ### Does it need Python or ONNX Runtime?
 
@@ -269,9 +336,10 @@ cache in IndexedDB through `@degreesign/storage`.
 
 ## Licensing
 
-Whisper weights and tokenizer data are Apache-2.0. The SenseVoice Q8_0 weights
-are distributed under the FunASR Model Open Source License Agreement v1.1. The
-bundled MP3 decoder is `minimp3`, which is CC0, together with the Apache-2.0
+Whisper weights and tokenizer data are Apache-2.0, and the Q8_0 GGUF
+conversions keep that license. The SenseVoice Q8_0 weights are distributed
+under the FunASR Model Open Source License Agreement v1.1. The bundled MP3
+decoder is `minimp3`, which is CC0, together with the Apache-2.0
 `minimp3-wasm` bindings. See `THIRD_PARTIES.md`. The runtime code in this
 folder is original work, licensed under MIT. See `LICENSE`.
 

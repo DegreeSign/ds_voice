@@ -7,5 +7,7 @@ assertWhisperShape: (options: {
     store: TensorStore;
     vocabSize: number;
     dModel: number;
+    /** Accept the quantized dtypes of a GGUF checkpoint. */
+    allowQuantized?: boolean;
 }) => void;
 export { parseSafetensors, assertWhisperShape };

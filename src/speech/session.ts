@@ -5,6 +5,7 @@ import { detectPlatform, hasMicrophone } from "./env";
 import { DEFAULT_MODEL } from "../models/specs";
 import { Language, TimestampMode } from "../tensor/types";
 import { dedupeBoundary, joinText, planChunks } from "./segment";
+import { kernelThreads } from "../tensor/wasm";
 import type {
     Model,
     Segment,
@@ -143,7 +144,7 @@ const
                         rtf: duration > 0
                             ? decodeMs / 1000 / duration
                             : 0,
-                        threads: 1,
+                        threads: kernelThreads(),
                     },
                 });
             },
@@ -266,6 +267,9 @@ const
                     model: options.model,
                     language: options.language,
                     allowedDiskSpaceMB: options.allowedDiskSpaceMB,
+                    weightsBaseUrl: options.weightsBaseUrl,
+                    weightCacheMB: options.weightCacheMB,
+                    threads: options.threads,
                     onProgress: options.onProgress,
                 });
                 model = await modelPromise;
@@ -337,6 +341,9 @@ const
                 model: options.model,
                 language: options.language,
                 allowedDiskSpaceMB: options.allowedDiskSpaceMB,
+                weightsBaseUrl: options.weightsBaseUrl,
+                weightCacheMB: options.weightCacheMB,
+                threads: options.threads,
                 onProgress: options.onProgress,
             });
             void modelPromise.then(

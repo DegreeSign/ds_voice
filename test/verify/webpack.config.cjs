@@ -4,7 +4,10 @@ const path = require("path");
 const webpack = require("webpack");
 
 module.exports = {
-    entry: "./test/verify/harness.ts",
+    entry: {
+        harness: "./test/verify/harness.ts",
+        poolWorker: "./test/verify/poolWorker.ts",
+    },
     target: "web",
     mode: "development",
     devtool: false,
@@ -20,7 +23,7 @@ module.exports = {
         ),
         new webpack.NormalModuleReplacementPlugin(
             /^\.\/poolNode$/,
-            path.resolve(__dirname, "../../src/tensor/poolStub.ts"),
+            path.resolve(__dirname, "../../src/tensor/poolBrowser.ts"),
         ),
     ],
     module: {
@@ -37,6 +40,6 @@ module.exports = {
     },
     output: {
         path: path.resolve(__dirname, "../../build"),
-        filename: "harness.js",
+        filename: "[name].js",
     },
 };

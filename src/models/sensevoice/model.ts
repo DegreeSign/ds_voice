@@ -8,6 +8,7 @@ import { encodeSenseVoice, senseVoiceLogits } from "./encoder";
 import { createSenseVoiceVocabulary } from "./tokenizer";
 import { createGgufWeights } from "./weights";
 import { MODEL_SPECS, checkpointKey } from "../specs";
+import { kernelThreads } from "../../tensor/wasm";
 import { Language, ModelFamily } from "../../tensor/types";
 import type {
     LoadedSenseVoice,
@@ -34,7 +35,12 @@ const
         }
         const
             file = parseGguf({ bytes }),
-            weights = createGgufWeights({ file }),
+            weights = createGgufWeights({
+                file,
+                cacheBytes: options.weightCacheMB === undefined
+                    ? undefined
+                    : options.weightCacheMB * 1024 * 1024,
+            }),
             vocabulary = createSenseVoiceVocabulary({ file });
         return {
             kind: ModelFamily.SenseVoice,
@@ -174,7 +180,7 @@ const
             meta: {
                 model: model.name,
                 rtf: duration > 0 ? elapsed / duration : 0,
-                threads: 1,
+                threads: kernelThreads(),
             },
         };
     };

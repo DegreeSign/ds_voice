@@ -1,30 +1,24 @@
 // Package entry, shared by Node and the browser.
 import { getVoice } from "./speech/voice";
-import { createSession } from "./speech/session";
-import { Language, ModelId, TimestampMode } from "./tensor/types";
-import type {
-    PreloadVoiceOptions,
-    TranscribeOptions,
-    TranscribeSession,
-} from "./tensor/types";
-const
-    /** Start a streaming transcription. */
-    transcribe = (options: TranscribeOptions = {}): TranscribeSession => {
-        return createSession({ options, voice: getVoice() });
-    },
-    /** Download and load a model ahead of time. */
-    preloadVoice = async (
-        options: PreloadVoiceOptions = {},
-    ): Promise<void> => {
-        await getVoice().ensureModel({
-            model: options.model,
-            language: options.language,
-            allowedDiskSpaceMB: options.allowedDiskSpaceMB,
-            onProgress: options.onProgress,
-        });
-    };
+import { createApi } from "./speech/api";
+import { Language, ModelId, ProgressPhase, TimestampMode } from "./tensor/types";
+const {
+    transcribe,
+    preloadVoice,
+    loadModel,
+    isModelCached,
+} = createApi(getVoice());
 
-export { transcribe, preloadVoice, Language, ModelId, TimestampMode };
+export {
+    transcribe,
+    preloadVoice,
+    loadModel,
+    isModelCached,
+    Language,
+    ModelId,
+    ProgressPhase,
+    TimestampMode,
+};
 export type {
     DiskBudgetOptions,
     DownloadProgress,

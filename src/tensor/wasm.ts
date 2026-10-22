@@ -1,6 +1,6 @@
 // SIMD kernel runtime with a growable linear memory arena.
 import { KERNEL_BASE64, KERNEL_SHARED_BASE64 } from "./kernelsWasm";
-import { createPool, createSharedMemory } from "./poolNode";
+import { createPool, createPoolAsync, createSharedMemory } from "./poolNode";
 import type {
     AttentionOptions,
     Conv1dOptions,
@@ -11,6 +11,7 @@ import type {
     SiluOptions,
     WasmKernel,
 } from "./types";
+let threadLimit = 1;
 const
     /** Score rows kept in the attention scratch area. */
     ATTENTION_BLOCK = 16,
@@ -32,7 +33,9 @@ const
     create = (): WasmKernel | null => {
         try {
             const
-                sharedMemory = createSharedMemory(),
+                sharedMemory = threadLimit >= 2
+                    ? createSharedMemory()
+                    : null,
                 memory = sharedMemory ?? new WebAssembly.Memory({
                     initial: 64,
                     maximum: 65536,
@@ -86,13 +89,48 @@ const
 
 let kernelState: WasmKernel | null | undefined;
 
-/** Shared kernel instance, null when the engine lacks SIMD. */
-const getKernel = (): WasmKernel | null => {
-    if (kernelState === undefined) {
-        kernelState = create();
-    }
-    return kernelState;
-},
+const
+    /** Request the worker count used by the next pool. */
+    setThreadCount = (threads?: number): void => {
+        const value = Math.max(1, Math.floor(threads ?? 1));
+        if (value === threadLimit) {
+            return;
+        }
+        threadLimit = value;
+        if (value >= 2 && kernelState && !kernelState.shared) {
+            kernelState = undefined;
+        }
+        const pool = kernelState?.pool;
+        if (pool && pool.threads !== value) {
+            pool.close();
+            if (kernelState) {
+                kernelState.pool = null;
+                kernelState.poolTried = false;
+            }
+        }
+    },
+    /** Worker threads used by the current decode. */
+    kernelThreads = (): number => kernelState?.pool?.threads ?? 1,
+    /** Create the shared kernel and worker pool before a decode. */
+    prepareThreads = async (threads?: number): Promise<void> => {
+        setThreadCount(threads);
+        const kernel = getKernel();
+        if (!kernel || threadLimit < 2 || !kernel.shared || kernel.pool) {
+            return;
+        }
+        kernel.poolTried = true;
+        kernel.pool = await createPoolAsync({
+            memory: kernel.memory,
+            threads: threadLimit,
+        });
+    },
+    /** Shared kernel instance, null when the engine lacks SIMD. */
+    getKernel = (): WasmKernel | null => {
+        if (kernelState === undefined) {
+            kernelState = create();
+        }
+        return kernelState;
+    },
     /** Grow the arena and return an aligned offset. */
     allocate = (kernel: WasmKernel, bytes: number): number => {
         const
@@ -178,11 +216,14 @@ const getKernel = (): WasmKernel | null => {
     },
     /** Lazily create the worker pool for a shared kernel arena. */
     poolFor = (kernel: WasmKernel): WasmKernel["pool"] => {
-        if (!kernel.shared || kernel.poolTried) {
+        if (threadLimit < 2 || !kernel.shared || kernel.poolTried) {
             return kernel.pool;
         }
         kernel.poolTried = true;
-        kernel.pool = createPool({ memory: kernel.memory });
+        kernel.pool = createPool({
+            memory: kernel.memory,
+            threads: threadLimit,
+        });
         return kernel.pool;
     },
     /** Run a linear layer with the SIMD kernel, or null to fall back. */
@@ -538,7 +579,10 @@ const getKernel = (): WasmKernel | null => {
 
 export {
     getKernel,
+    kernelThreads,
+    prepareThreads,
     reserveFloats,
+    setThreadCount,
     wasmAttention,
     wasmConv1d,
     wasmConv2d,

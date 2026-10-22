@@ -4,6 +4,10 @@ const
     /** No shared memory outside Node. */
     createSharedMemory = (): WebAssembly.Memory | null => null,
     /** No worker pool outside Node. */
-    createPool = (_options: CreatePoolOptions): TensorPool | null => null;
+    createPool = (_options: CreatePoolOptions): TensorPool | null => null,
+    /** No worker pool outside Node. */
+    createPoolAsync = async (
+        _options: CreatePoolOptions,
+    ): Promise<TensorPool | null> => null;
 
-export { createPool, createSharedMemory };
+export { createPool, createPoolAsync, createSharedMemory };

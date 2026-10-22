@@ -1,4 +1,5 @@
 // Chunked binary storage helpers.
+import type { ModelPartStore } from "../tensor/types";
 const
     /** Bytes held by one stored chunk. */
     CHUNK_BYTES = 4 * 1024 * 1024,
@@ -15,6 +16,108 @@ const
     decodeManifest = (text: string): number[] => {
         const parsed = JSON.parse(text) as { sizes?: number[] };
         return parsed.sizes ?? [];
+    },
+    /** True when every chunk of a manifest is present. */
+    completeSizes = (sizes: number[]): boolean => {
+        if (sizes.length === 0) {
+            return false;
+        }
+        for (const size of sizes) {
+            if (size <= 0) {
+                return false;
+            }
+        }
+        return true;
+    },
+    /** Assemble a file from its stored chunks. */
+    readPartFile = async (options: {
+        parts: ModelPartStore;
+        key: string;
+    }): Promise<Uint8Array | null> => {
+        const
+            { parts, key } = options,
+            sizes = await parts.readSizes(key);
+        if (!sizes || !completeSizes(sizes)) {
+            return null;
+        }
+        let total = 0;
+        for (const size of sizes) {
+            total += size;
+        }
+        const out = new Uint8Array(total);
+        let offset = 0;
+        for (let index = 0; index < sizes.length; index += 1) {
+            const chunk = await parts.read({ key, index });
+            if (!chunk || chunk.length !== sizes[index]) {
+                throw new Error(`missing chunk ${key} ${index}`);
+            }
+            out.set(chunk, offset);
+            offset += chunk.length;
+        }
+        return out;
+    },
+    /** Size of a chunked file in bytes. */
+    sizeOfPartFile = async (options: {
+        parts: ModelPartStore;
+        key: string;
+    }): Promise<number> => {
+        const sizes = await options.parts.readSizes(options.key);
+        if (!sizes) {
+            return 0;
+        }
+        let total = 0;
+        for (const size of sizes) {
+            total += size;
+        }
+        return total;
+    },
+    /** True when a manifest exists and every chunk is present. */
+    hasCompletePartFile = async (options: {
+        parts: ModelPartStore;
+        key: string;
+    }): Promise<boolean> => {
+        const sizes = await options.parts.readSizes(options.key);
+        return sizes !== null && completeSizes(sizes);
+    },
+    /** Write a stream as a manifest plus chunks. */
+    streamPartFile = async (options: {
+        parts: ModelPartStore;
+        key: string;
+        stream: ReadableStream<Uint8Array>;
+        onProgress?: (loaded: number) => void;
+    }): Promise<void> => {
+        const
+            { parts, key, stream, onProgress } = options,
+            sizes: number[] = [];
+        await streamChunks({
+            stream,
+            onChunk: async (chunk) => {
+                await parts.write({
+                    key,
+                    index: sizes.length,
+                    bytes: chunk,
+                });
+                sizes.push(chunk.length);
+                await parts.writeSizes({ key, sizes: sizes.slice() });
+                onProgress?.(chunk.length);
+            },
+        });
+        await parts.writeSizes({ key, sizes });
+    },
+    /** Remove every chunk of a file, leaving the manifest. */
+    removePartFile = async (options: {
+        parts: ModelPartStore;
+        key: string;
+    }): Promise<void> => {
+        const
+            { parts, key } = options,
+            sizes = await parts.readSizes(key);
+        if (!sizes) {
+            return;
+        }
+        for (let index = 0; index < sizes.length; index += 1) {
+            await parts.remove({ key, index });
+        }
     },
     /** Split a stream into fixed size chunks. */
     streamChunks = async (options: {
@@ -162,21 +265,31 @@ const
             for (; index < sizes.length; index += 1) {
                 await remove(partKey({ key, index }));
             }
-        } else {
-            // sweep orphan chunks
-            for (; await has(partKey({ key, index })); index += 1) {
-                await remove(partKey({ key, index }));
-            }
+        }
+        // sweep orphan chunks
+        for (; await has(partKey({ key, index })); index += 1) {
+            await remove(partKey({ key, index }));
         }
         await remove(manifestKey(key));
         await remove(key);
     };
 
 export {
+    CHUNK_BYTES,
     chunkedExists,
     chunkedReady,
     chunkedSize,
+    completeSizes,
+    decodeManifest,
+    encodeManifest,
+    hasCompletePartFile,
+    manifestKey,
+    partKey,
     readChunks,
-    writeChunkStream,
+    readPartFile,
     removeChunks,
+    removePartFile,
+    sizeOfPartFile,
+    streamPartFile,
+    writeChunkStream,
 };

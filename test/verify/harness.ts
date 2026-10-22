@@ -79,15 +79,21 @@ import { loadTokenizer } from "../../src/models/whisper/tokenizer";
 import { loadWhisper, transcribeWhisper } from "../../src/models/whisper/model";
 import { buildSegments, buildWords } from "../../src/models/whisper/words";
 import {
+    CHUNK_BYTES,
     chunkedExists,
     chunkedReady,
     chunkedSize,
+    completeSizes,
     readChunks,
     removeChunks,
     writeChunkStream,
 } from "../../src/store/chunk";
 import { createBrowserStore } from "../../src/store/browser";
-import { deleteModel, prepareModel } from "../../src/store/download";
+import {
+    deleteModel,
+    isCheckpointCached,
+    prepareModel,
+} from "../../src/store/download";
 import {
     DEFAULT_DISK_SPACE_MB,
     ensureSpace,
@@ -102,15 +108,46 @@ import { decodeFlac } from "../../src/audio/flac";
 import { decodeMp3 } from "../../src/audio/mp3";
 import { decodeWav } from "../../src/audio/wav";
 import { downmix, resampleAudio } from "../../src/audio/resample";
-import { Language, Platform, TimestampMode } from "../../src/tensor/types";
+import {
+    Language,
+    Platform,
+    ProgressPhase,
+    TimestampMode,
+} from "../../src/tensor/types";
 import { createVoice, getVoice } from "../../src/speech/voice";
+import {
+    createVoice as createSenseVoiceVoice,
+} from "../../src/speech/senseVoice";
+import {
+    createVoice as createWhisperVoice,
+} from "../../src/speech/whisper";
 import { createSession } from "../../src/speech/session";
 import { captureMicrophone } from "../../src/audio/mic";
+import { kernelThreads, setThreadCount } from "../../src/tensor/wasm";
+import {
+    createPool as createBrowserPool,
+    createPoolAsync as createBrowserPoolAsync,
+    createSharedMemory as createBrowserSharedMemory,
+} from "../../src/tensor/poolBrowser";
+import {
+    createPool as createStubPool,
+    createSharedMemory as createStubSharedMemory,
+} from "../../src/tensor/poolStub";
+import {
+    createWhisperWeights,
+    mapName,
+} from "../../src/models/whisper/weights";
+import {
+    GGUF_CACHE_BYTES,
+    ggmlTypeName,
+    readGgufTensor,
+} from "../../src/formats/ggufTensor";
 import { TINY_FLAC, TINY_MP3 } from "./fixtures";
 import { writeWav16 } from "./wav";
 import * as entry from "../../src/index";
 import type {
     Constants,
+    DownloadProgress,
     GgufFile,
     GgufValue,
     LoadedModel,
@@ -118,6 +155,7 @@ import type {
     MelConfig,
     Model,
     ModelConfig,
+    ModelPartStore,
     ModelStore,
     RawGenerationConfig,
     RawModelConfig,
@@ -134,6 +172,15 @@ import type {
 interface TestOutcome {
     name: string;
     ok: boolean;
+    error?: string;
+}
+
+/** Result posted back by the pool worker test bundle. */
+interface PoolWorkerResult {
+    ok: boolean;
+    threads?: number;
+    value?: number;
+    shared?: boolean;
     error?: string;
 }
 
@@ -219,6 +266,19 @@ const
             threw = true;
         }
         assert(threw, `${label}: expected throw`);
+    },
+    /** Assert an async callback rejects. */
+    assertRejects = async (
+        run: () => Promise<unknown>,
+        label: string,
+    ): Promise<void> => {
+        let threw = false;
+        try {
+            await run();
+        } catch {
+            threw = true;
+        }
+        assert(threw, `${label}: expected rejection`);
     };
 
 const
@@ -1321,7 +1381,7 @@ const definitions: Array<{
             name: "models/specs constants",
             run: () => {
                 assertEqual(HF_BASE, "https://huggingface.co", "hf base");
-                assertEqual(DEFAULT_MODEL, ModelId.SenseVoiceSmall, "default");
+                assertEqual(DEFAULT_MODEL, ModelId.WhisperBase, "default");
                 assertEqual(MODEL_IDS.length, 2, "model ids");
                 assertEqual(CHECKPOINT_IDS.length, 3, "checkpoints");
                 assert(MODEL_SPECS[ModelId.WhisperBase] !== undefined, "spec");
@@ -1343,8 +1403,24 @@ const definitions: Array<{
                         model: ModelId.WhisperBase,
                         language: Language.en,
                     }).repo,
-                    "openai/whisper-base.en",
+                    "handy-computer/whisper-base.en-gguf",
                     "english checkpoint",
+                );
+                assertEqual(
+                    resolveSpec({
+                        model: ModelId.WhisperBase,
+                        language: Language.en,
+                    }).textRepo,
+                    "openai/whisper-base.en",
+                    "english text files",
+                );
+                assertEqual(
+                    resolveSpec({
+                        model: ModelId.WhisperBase,
+                        language: Language.auto,
+                    }).weightFile,
+                    "whisper-base-Q8_0.gguf",
+                    "quantized weight",
                 );
                 assertEqual(
                     resolveSpec({
@@ -1359,12 +1435,12 @@ const definitions: Array<{
                         model: ModelId.WhisperBase,
                         language: Language.auto,
                     }).repo,
-                    "openai/whisper-base",
+                    "handy-computer/whisper-base-gguf",
                     "auto checkpoint",
                 );
                 assertEqual(
                     resolveSpec({ model: ModelId.WhisperBase }).repo,
-                    "openai/whisper-base",
+                    "handy-computer/whisper-base-gguf",
                     "default checkpoint",
                 );
                 assertEqual(
@@ -1843,6 +1919,117 @@ const definitions: Array<{
             },
         },
         {
+            name: "whisper/model loadWhisper GGUF",
+            run: async () => {
+                const
+                    config = whisperRaw(),
+                    bytes = ggufBytes({
+                        tensors: [{
+                            name: "dec.token_embd.weight",
+                            dims: [config.d_model, config.vocab_size],
+                            type: 0,
+                            data: f32Data(
+                                new Array<number>(
+                                    config.vocab_size * config.d_model,
+                                ).fill(0.5),
+                            ),
+                        }],
+                    }),
+                    checkpoint = ModelId.WhisperBase,
+                    spec = MODEL_SPECS[checkpoint],
+                    store = fakeStore({
+                        texts: {
+                            [checkpointKey({
+                                checkpoint,
+                                file: "config.json",
+                            })]: JSON.stringify(config),
+                            [checkpointKey({
+                                checkpoint,
+                                file: "generation_config.json",
+                            })]: JSON.stringify(whisperGeneration()),
+                            [checkpointKey({
+                                checkpoint,
+                                file: "preprocessor_config.json",
+                            })]: JSON.stringify(whisperPreprocessor()),
+                            [checkpointKey({
+                                checkpoint,
+                                file: "tokenizer.json",
+                            })]: JSON.stringify({ model: { vocab: { "a": 0 } } }),
+                        },
+                        bytes: {
+                            [checkpointKey({
+                                checkpoint,
+                                file: spec.weightFile,
+                            })]: bytes,
+                        },
+                    }),
+                    loaded = await loadWhisper({
+                        store,
+                        model: ModelId.WhisperBase,
+                        checkpoint,
+                    });
+                assertEqual(loaded.tensors.info(
+                    "model.decoder.embed_tokens.weight",
+                ).dtype, "F32", "gguf dtype");
+                assert(
+                    loaded.tensors.get(
+                        "model.decoder.embed_tokens.weight",
+                    ).length > 0,
+                    "gguf weights",
+                );
+            },
+        },
+        {
+            name: "whisper/weights GGUF mapping and dequantization",
+            run: async () => {
+                const
+                    config = whisperRaw(),
+                    bytes = ggufBytes({
+                        tensors: [{
+                            name: "dec.token_embd.weight",
+                            dims: [config.d_model, config.vocab_size],
+                            type: 0,
+                            data: f32Data(
+                                new Array<number>(
+                                    config.vocab_size * config.d_model,
+                                ).fill(0.5),
+                            ),
+                        }],
+                    }),
+                    file = parseGguf({ bytes }),
+                    weights = createWhisperWeights({ file }),
+                    embed = "model.decoder.embed_tokens.weight";
+                assertEqual(mapName("enc.conv.0.weight"), "model.encoder.conv1.weight", "map conv");
+                assertEqual(
+                    mapName("enc.blocks.0.attn.q.weight"),
+                    "model.encoder.layers.0.self_attn.q_proj.weight",
+                    "map encoder attn",
+                );
+                assertEqual(
+                    mapName("dec.blocks.0.cross_attn.out.bias"),
+                    "model.decoder.layers.0.encoder_attn.out_proj.bias",
+                    "map decoder cross",
+                );
+                assertEqual(mapName("frontend.window"), null, "skip frontend");
+                assertEqual(weights.has(embed), true, "has embed");
+                assertEqual(weights.info(embed).shape[0], config.vocab_size, "shape");
+                assertList(
+                    weights.get(embed).subarray(0, 2),
+                    [0.5, 0.5],
+                    "embed values",
+                );
+                assertEqual(ggmlTypeName(0), "F32", "f32 name");
+                assertEqual(ggmlTypeName(8), "Q8_0", "q8 name");
+                assertEqual(GGUF_CACHE_BYTES, 128 * 1024 * 1024, "cache budget");
+                const
+                    source = file.tensors.get("dec.token_embd.weight"),
+                    f32 = source
+                        ? readGgufTensor({ file, info: source })
+                        : new Float32Array(0);
+                assertEqual(f32.length, config.vocab_size * config.d_model, "read tensor");
+            },
+        },
+        {
             name: "whisper/model transcribeWhisper",
             run: () => {
                 const model = graphModel();
@@ -2058,6 +2245,11 @@ const definitions: Array<{
                 assertEqual(weights.shape("f32t")[0], 2, "shape");
                 assert(weights.names().includes("f32t"), "names");
                 assertThrows(() => weights.f32("missing"), "missing");
+                const uncached = createGgufWeights({
+                    file: parseGguf({ bytes }),
+                    cacheBytes: 0,
+                });
+                assertList(uncached.f32("f32t"), [1, 2, 3, 4], "no cache");
             },
         },
         {
@@ -2225,6 +2417,41 @@ const definitions: Array<{
                 ] as const) {
                     assertEqual(typeof store[key], "function", `method ${key}`);
                 }
+                assert(store.parts !== undefined, "parts");
+                await store.parts?.write({
+                    key: "harness/parts",
+                    index: 0,
+                    bytes: Uint8Array.from([1, 2]),
+                });
+                await store.parts?.writeSizes({
+                    key: "harness/parts",
+                    sizes: [2],
+                });
+                assertList(
+                    (await store.parts?.read({
+                        key: "harness/parts",
+                        index: 0,
+                    })) ?? new Uint8Array(0),
+                    [1, 2],
+                    "part read",
+                );
+                assertList(
+                    (await store.parts?.readSizes("harness/parts")) ?? [],
+                    [2],
+                    "part sizes",
+                );
+                assertList(
+                    (await store.readBytes("harness/parts")) ??
+                        new Uint8Array(0),
+                    [1, 2],
+                    "part file",
+                );
+                await store.remove("harness/parts");
+                assertEqual(
+                    await store.parts?.readSizes("harness/parts"),
+                    null,
+                    "part removed",
+                );
                 await store.writeText({ key: "harness/probe", text: "value" });
                 assertEqual(await store.readText("harness/probe"), "value", "round trip");
                 assertEqual(await store.size?.("harness/probe"), 5, "probe size");
@@ -2507,6 +2734,167 @@ const definitions: Array<{
             },
         },
         {
+            name: "store/download resumes ranges with aggregate progress",
+            run: async () => {
+                const
+                    spec = MODEL_SPECS[ModelId.SenseVoiceSmall],
+                    savedBytes = spec.weightBytes,
+                    total = CHUNK_BYTES * 2,
+                    key = checkpointKey({
+                        checkpoint: spec.checkpoint,
+                        file: spec.weightFile,
+                    }),
+                    manifests = new Map<string, number[]>(),
+                    chunks = new Map<string, Uint8Array>(),
+                    chunkKey = (input: { key: string; index: number }) =>
+                        `${input.key}:${input.index}`,
+                    parts: ModelPartStore = {
+                        readSizes: async (inner) =>
+                            manifests.get(inner) ?? null,
+                        writeSizes: async ({ key: inner, sizes }) => {
+                            manifests.set(inner, sizes.slice());
+                        },
+                        read: async (input) =>
+                            chunks.get(chunkKey(input)) ?? null,
+                        write: async (input) => {
+                            chunks.set(chunkKey(input), input.bytes.slice());
+                        },
+                        remove: async (input) => {
+                            chunks.delete(chunkKey(input));
+                        },
+                    },
+                    store: ModelStore = {
+                        exists: async (inner) =>
+                            manifests.has(inner) ||
+                            chunks.has(`${inner}:0`),
+                        readText: async () => null,
+                        readBytes: async () => null,
+                        hasBinary: async (inner) => {
+                            const sizes = manifests.get(inner);
+                            return sizes !== undefined &&
+                                completeSizes(sizes);
+                        },
+                        size: async (inner) => {
+                            const sizes = manifests.get(inner) ?? [];
+                            let size = 0;
+                            for (const item of sizes) {
+                                size += item;
+                            }
+                            return size;
+                        },
+                        writeText: async () => undefined,
+                        writeStream: async () => {
+                            throw new Error("stream fallback used");
+                        },
+                        remove: async (inner) => {
+                            manifests.delete(inner);
+                            for (const chunk of [...chunks.keys()]) {
+                                if (chunk.startsWith(`${inner}:`)) {
+                                    chunks.delete(chunk);
+                                }
+                            }
+                        },
+                        parts,
+                    },
+                    urls: string[] = [],
+                    ranges: string[] = [],
+                    reports: DownloadProgress[] = [],
+                    original = globalThis.fetch;
+                await parts.write({
+                    key,
+                    index: 0,
+                    bytes: new Uint8Array(CHUNK_BYTES),
+                });
+                await parts.writeSizes({
+                    key,
+                    sizes: [CHUNK_BYTES, 0],
+                });
+                spec.weightBytes = total;
+                let failOnce = true;
+                globalThis.fetch = (async (
+                    input: RequestInfo | URL,
+                    init?: RequestInit,
+                ) => {
+                    urls.push(String(input));
+                    const headers = (init?.headers ?? {}) as Record<
+                        string,
+                        string
+                    >;
+                    const range = headers.Range ?? "";
+                    ranges.push(range);
+                    const match = /^bytes=(\d+)-(\d+)$/.exec(range);
+                    if (!match) {
+                        throw new Error(`no range ${range}`);
+                    }
+                    const
+                        start = Number(match[1]),
+                        end = Number(match[2]),
+                        length = end - start + 1;
+                    if (start === CHUNK_BYTES && failOnce) {
+                        failOnce = false;
+                        return new Response(new Uint8Array(2), {
+                            status: 206,
+                        });
+                    }
+                    return new Response(new Uint8Array(length), {
+                        status: 206,
+                        headers: {
+                            "content-range":
+                                `bytes ${start}-${end}/${total}`,
+                        },
+                    });
+                }) as typeof fetch;
+                try {
+                    assertEqual(
+                        await isCheckpointCached({ store, spec }),
+                        false,
+                        "partial not cached",
+                    );
+                    await prepareModel({
+                        store,
+                        model: ModelId.SenseVoiceSmall,
+                        weightsBaseUrl: "https://mirror.example/",
+                        onProgress: (progress) => reports.push(progress),
+                    });
+                } finally {
+                    globalThis.fetch = original;
+                    spec.weightBytes = savedBytes;
+                }
+                assertEqual(
+                    await isCheckpointCached({ store, spec }),
+                    true,
+                    "complete cached",
+                );
+                assert(
+                    ranges.includes(`bytes=${CHUNK_BYTES}-${total - 1}`),
+                    "missing chunk fetched",
+                );
+                assert(
+                    !ranges.includes(`bytes=0-${CHUNK_BYTES - 1}`),
+                    "complete chunk kept",
+                );
+                const sizes = manifests.get(key) ?? [];
+                assertList(sizes, [CHUNK_BYTES, CHUNK_BYTES], "sizes");
+                assertEqual(chunks.get(`${key}:1`)?.length, CHUNK_BYTES, "chunk");
+                for (const url of urls) {
+                    assert(
+                        url.startsWith("https://mirror.example/"),
+                        `mirror ${url}`,
+                    );
+                }
+                assert(reports.length > 0, "progress missing");
+                let previous = -1;
+                for (const report of reports) {
+                    assert(report.loaded >= previous, "progress regressed");
+                    previous = report.loaded;
+                }
+                const last = reports[reports.length - 1];
+                assertEqual(last.phase, ProgressPhase.verify, "final phase");
+                assertClose(last.ratio, 1, "final ratio");
+                assertEqual(last.total, total, "final total");
+            },
+        },
+        {
             name: "voice createVoice",
             run: async () => {
                 const
@@ -2520,8 +2908,12 @@ const definitions: Array<{
                         },
                     }),
                     voice = createVoice({ store }),
-                    prepared = await voice.prepareModel(),
-                    loaded = await voice.loadModel(),
+                    prepared = await voice.prepareModel({
+                        model: ModelId.SenseVoiceSmall,
+                    }),
+                    loaded = await voice.loadModel({
+                        model: ModelId.SenseVoiceSmall,
+                    }),
                     transcript = voice.transcribe({
                         model: loaded,
                         pcm: new Float32Array(24).fill(0.3),
@@ -2553,6 +2945,104 @@ const definitions: Array<{
                     })),
                     false,
                     "deleted",
+                );
+            },
+        },
+        {
+            name: "speech family bundles limit models",
+            run: async () => {
+                const
+                    config = senseVoiceConfig(),
+                    store = fakeStore({
+                        bytes: {
+                            [checkpointKey({
+                                checkpoint: ModelId.SenseVoiceSmall,
+                                file: "SenseVoiceSmall-Q8_0.gguf",
+                            })]: senseVoiceGguf(config),
+                        },
+                    }),
+                    options = {
+                        model: ModelId.SenseVoiceSmall,
+                        weightsBaseUrl: "https://mirror.example",
+                        weightCacheMB: 1,
+                        threads: 1,
+                    },
+                    voice = createSenseVoiceVoice({ store }),
+                    cached = await voice.isModelCached({ model: options.model });
+                assertEqual(cached, true, "family cached");
+                const loaded = await voice.loadModel(options);
+                assertEqual(loaded.kind, ModelFamily.SenseVoice, "family kind");
+                assertEqual(kernelThreads(), 1, "single thread");
+                setThreadCount(1);
+                const transcript = voice.transcribe({
+                    model: loaded,
+                    pcm: new Float32Array(24).fill(0.3),
+                });
+                assertEqual(transcript.meta.threads, 1, "meta threads");
+                await assertRejects(
+                    async () => await createWhisperVoice({ store }).loadModel({
+                        model: ModelId.SenseVoiceSmall,
+                    }),
+                    "missing family",
+                );
+            },
+        },
+        {
+            name: "tensor/pool browser pool",
+            run: async () => {
+                const
+                    shared = createBrowserSharedMemory(),
+                    memory = shared ?? new WebAssembly.Memory({ initial: 1 });
+                assertEqual(
+                    createBrowserPool({ memory, threads: 2 }),
+                    null,
+                    "sync pool unavailable",
+                );
+                if (shared === null) {
+                    assertEqual(
+                        await createBrowserPoolAsync({ memory, threads: 2 }),
+                        null,
+                        "no isolation",
+                    );
+                } else {
+                    assertEqual(
+                        await createBrowserPoolAsync({ memory, threads: 2 }),
+                        null,
+                        "main thread cannot block",
+                    );
+                    const result = await new Promise<PoolWorkerResult>(
+                        (resolve, reject) => {
+                            const worker = new Worker("poolWorker.js");
+                            worker.onmessage = (event) => {
+                                worker.terminate();
+                                resolve(event.data as PoolWorkerResult);
+                            };
+                            worker.onerror = (event) => {
+                                worker.terminate();
+                                reject(new Error(event.message));
+                            };
+                            worker.postMessage(null);
+                        },
+                    );
+                    assertEqual(result.ok, true, result.error ?? "worker");
+                    assertEqual(
+                        result.threads,
+                        2,
+                        `pool threads shared=${result.shared}`,
+                    );
+                    assertClose(result.value ?? 0, 1, "pool matmul");
+                }
+                assertEqual(
+                    createStubSharedMemory(),
+                    null,
+                    "stub shared memory",
+                );
+                assertEqual(
+                    createStubPool({
+                        memory: new WebAssembly.Memory({ initial: 1 }),
+                    }),
+                    null,
+                    "stub pool",
                 );
             },
         },
@@ -2816,7 +3306,12 @@ const definitions: Array<{
         {
             name: "index entry exports",
             run: () => {
-                for (const key of ["transcribe", "preloadVoice"] as const) {
+                for (const key of [
+                    "transcribe",
+                    "preloadVoice",
+                    "loadModel",
+                    "isModelCached",
+                ] as const) {
                     assertEqual(typeof entry[key], "function", `export ${key}`);
                 }
                 assertEqual(
@@ -2824,6 +3319,8 @@ const definitions: Array<{
                     "sensevoice-small",
                     "id",
                 );
+                assertEqual(entry.ProgressPhase.download, "download", "phase");
+                assertEqual(entry.ProgressPhase.decode, "decode", "decode phase");
                 assertEqual(entry.Language.en, "en", "language");
                 assertEqual(entry.Language.auto, "auto", "auto language");
                 assertEqual(entry.TimestampMode.none, "none", "timestamp none");

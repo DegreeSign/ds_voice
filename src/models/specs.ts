@@ -5,10 +5,9 @@ const
     /** Hugging Face base URL. */
     HF_BASE = "https://huggingface.co",
     /** Default model selection. */
-    DEFAULT_MODEL = ModelId.SenseVoiceSmall,
+    DEFAULT_MODEL = ModelId.WhisperBase,
     /** Files fetched for every Whisper checkpoint. */
     WHISPER_FILES = [
-        "model.safetensors",
         "config.json",
         "generation_config.json",
         "preprocessor_config.json",
@@ -17,6 +16,10 @@ const
         "added_tokens.json",
         "special_tokens_map.json",
     ],
+    /** Weight file of the multilingual Whisper checkpoint. */
+    WHISPER_WEIGHT = "whisper-base-Q8_0.gguf",
+    /** Weight file of the English Whisper checkpoint. */
+    WHISPER_EN_WEIGHT = "whisper-base.en-Q8_0.gguf",
     /** Every supported checkpoint. */
     MODEL_SPECS: Record<CheckpointId, ModelSpec> = {
         [ModelId.SenseVoiceSmall]: {
@@ -31,20 +34,22 @@ const
         [ModelId.WhisperBase]: {
             id: ModelId.WhisperBase,
             checkpoint: ModelId.WhisperBase,
-            repo: "openai/whisper-base",
+            repo: "handy-computer/whisper-base-gguf",
+            textRepo: "openai/whisper-base",
             family: ModelFamily.Whisper,
-            weightFile: "model.safetensors",
-            weightBytes: 290_403_936,
-            files: WHISPER_FILES,
+            weightFile: WHISPER_WEIGHT,
+            weightBytes: 84_962_880,
+            files: [WHISPER_WEIGHT, ...WHISPER_FILES],
         },
         "whisper-base.en": {
             id: ModelId.WhisperBase,
             checkpoint: "whisper-base.en",
-            repo: "openai/whisper-base.en",
+            repo: "handy-computer/whisper-base.en-gguf",
+            textRepo: "openai/whisper-base.en",
             family: ModelFamily.Whisper,
-            weightFile: "model.safetensors",
-            weightBytes: 290_401_888,
-            files: WHISPER_FILES,
+            weightFile: WHISPER_EN_WEIGHT,
+            weightBytes: 84_886_208,
+            files: [WHISPER_EN_WEIGHT, ...WHISPER_FILES],
         },
     },
     /** Every public model id, in spec order. */

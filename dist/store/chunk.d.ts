@@ -1,4 +1,47 @@
+import type { ModelPartStore } from "../tensor/types";
 declare const 
+/** Bytes held by one stored chunk. */
+CHUNK_BYTES: number, 
+/** Manifest key for one file. */
+manifestKey: (key: string) => string, 
+/** Chunk key for one file and index. */
+partKey: (options: {
+    key: string;
+    index: number;
+}) => string, 
+/** Encode a list of chunk sizes. */
+encodeManifest: (sizes: number[]) => string, 
+/** Decode a list of chunk sizes. */
+decodeManifest: (text: string) => number[], 
+/** True when every chunk of a manifest is present. */
+completeSizes: (sizes: number[]) => boolean, 
+/** Assemble a file from its stored chunks. */
+readPartFile: (options: {
+    parts: ModelPartStore;
+    key: string;
+}) => Promise<Uint8Array | null>, 
+/** Size of a chunked file in bytes. */
+sizeOfPartFile: (options: {
+    parts: ModelPartStore;
+    key: string;
+}) => Promise<number>, 
+/** True when a manifest exists and every chunk is present. */
+hasCompletePartFile: (options: {
+    parts: ModelPartStore;
+    key: string;
+}) => Promise<boolean>, 
+/** Write a stream as a manifest plus chunks. */
+streamPartFile: (options: {
+    parts: ModelPartStore;
+    key: string;
+    stream: ReadableStream<Uint8Array>;
+    onProgress?: (loaded: number) => void;
+}) => Promise<void>, 
+/** Remove every chunk of a file, leaving the manifest. */
+removePartFile: (options: {
+    parts: ModelPartStore;
+    key: string;
+}) => Promise<void>, 
 /** True when a key or its manifest is present. */
 chunkedExists: (options: {
     key: string;
@@ -37,4 +80,4 @@ removeChunks: (options: {
     has?: (key: string) => Promise<boolean>;
     remove: (key: string) => Promise<void>;
 }) => Promise<void>;
-export { chunkedExists, chunkedReady, chunkedSize, readChunks, writeChunkStream, removeChunks, };
+export { CHUNK_BYTES, chunkedExists, chunkedReady, chunkedSize, completeSizes, decodeManifest, encodeManifest, hasCompletePartFile, manifestKey, partKey, readChunks, readPartFile, removeChunks, removePartFile, sizeOfPartFile, streamPartFile, writeChunkStream, };

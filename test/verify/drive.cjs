@@ -80,6 +80,8 @@ const serve = () =>
             }
             res.writeHead(200, {
                 "content-type": MIME[path.extname(file)] || "application/octet-stream",
+                "cross-origin-opener-policy": "same-origin",
+                "cross-origin-embedder-policy": "require-corp",
             });
             fs.createReadStream(file).pipe(res);
         });

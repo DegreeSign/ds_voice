@@ -7,5 +7,10 @@ prepareModel: (options: PrepareModelOptions & {
 /** Remove every file of a model from the store. */
 deleteModel: (options: DeleteModelOptions & {
     store: ModelStore;
-}) => Promise<void>;
-export { prepareModel, deleteModel };
+}) => Promise<void>, 
+/** True when every file of one checkpoint is stored. */
+isCheckpointCached: (options: {
+    store: ModelStore;
+    spec: ModelSpec;
+}) => Promise<boolean>;
+export { prepareModel, deleteModel, isCheckpointCached, };

@@ -4,7 +4,7 @@ declare const
 /** Hugging Face base URL. */
 HF_BASE = "https://huggingface.co", 
 /** Default model selection. */
-DEFAULT_MODEL = ModelId.SenseVoiceSmall, 
+DEFAULT_MODEL = ModelId.WhisperBase, 
 /** Every supported checkpoint. */
 MODEL_SPECS: Record<CheckpointId, ModelSpec>, 
 /** Every public model id, in spec order. */
