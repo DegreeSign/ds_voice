@@ -20,6 +20,20 @@ const
             rms = Math.sqrt(sum / count);
         return 20 * Math.log10(Math.max(rms, 1e-7));
     },
+    /** Default chunk energy floor in dBFS. */
+    DEFAULT_DB_FLOOR = -50,
+    /** True when a buffer carries signal above the floor. */
+    hasSignal = (options: SegmentOptions): boolean => {
+        const
+            { pcm, samplingRate } = options,
+            frameLength = Math.round(0.02 * samplingRate);
+        if (pcm.length < frameLength) {
+            // too short to judge
+            return true;
+        }
+        return frameDb({ pcm, start: 0, length: pcm.length })
+            > (options.dbFloor ?? DEFAULT_DB_FLOOR);
+    },
     /** Detect speech and cut into chunks of at most 30 seconds. */
     planChunks = (options: SegmentOptions): SpeechChunk[] => {
         const
@@ -46,7 +60,7 @@ const
             maxChunk = (options.maxChunkSeconds ?? 30) * samplingRate,
             minPause = Math.round((options.minPauseSeconds ?? 0.3) * 1000),
             minChunk = Math.round((options.minChunkSeconds ?? 0.2) * samplingRate),
-            dbFloor = options.dbFloor ?? -50,
+            dbFloor = options.dbFloor ?? DEFAULT_DB_FLOOR,
             cutPoints: number[] = [];
         let silenceRun = 0;
         for (let f = 0; f < frameCount; f += 1) {
@@ -172,4 +186,4 @@ const
         return `${previous} ${next}`;
     };
 
-export { planChunks, dedupeBoundary, joinText };
+export { planChunks, dedupeBoundary, joinText, hasSignal };

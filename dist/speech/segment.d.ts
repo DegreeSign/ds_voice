@@ -1,5 +1,7 @@
 import type { SegmentOptions, SpeechChunk } from "../tensor/types";
 declare const 
+/** True when a buffer carries signal above the floor. */
+hasSignal: (options: SegmentOptions) => boolean, 
 /** Detect speech and cut into chunks of at most 30 seconds. */
 planChunks: (options: SegmentOptions) => SpeechChunk[], 
 /** Remove a repeated leading phrase at a join. */
@@ -12,4 +14,4 @@ joinText: (options: {
     previous: string;
     next: string;
 }) => string;
-export { planChunks, dedupeBoundary, joinText };
+export { planChunks, dedupeBoundary, joinText, hasSignal };

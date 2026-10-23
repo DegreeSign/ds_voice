@@ -1,6 +1,7 @@
 // SenseVoice model loading.
 import { parseGguf } from "../../formats/gguf";
-import { dedupeBoundary, joinText, planChunks } from "../../speech/segment";
+import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../speech/segment";
+import { padWindow } from "../../audio/pad";
 import { decodeCtc } from "./ctc";
 import { readSenseVoiceConfig, readSenseVoiceFrontend } from "./config";
 import { computeSenseVoiceFeatures } from "./fbank";
@@ -61,8 +62,12 @@ const
     }): { text: string; language: Language } => {
         const
             { model, pcm } = options,
-            features = computeSenseVoiceFeatures({
+            window = padWindow({
                 pcm,
+                samplingRate: model.frontend.samplingRate,
+            }),
+            features = computeSenseVoiceFeatures({
+                pcm: window.pcm,
                 frontend: model.frontend,
             });
         if (features.frames <= 0) {
@@ -117,12 +122,30 @@ const
     }): Transcript => {
         const
             { model, pcm } = options,
-            started = performance.now(),
             rate = model.frontend.samplingRate,
             duration = pcm.length / rate;
         let
             text: string,
             language = options.language ?? Language.auto;
+        if (!hasSignal({ pcm, samplingRate: rate })) {
+            return {
+                text: "",
+                language,
+                duration,
+                segments: [{
+                    start: 0,
+                    end: duration,
+                    text: "",
+                    words: [],
+                }],
+                meta: {
+                    model: model.name,
+                    rtf: 0,
+                    threads: kernelThreads(),
+                },
+            };
+        }
+        const started = performance.now();
         if (duration <= MAX_WINDOW_SECONDS) {
             const window = transcribeWindow({
                 model,

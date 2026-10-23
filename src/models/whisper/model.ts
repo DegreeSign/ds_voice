@@ -15,7 +15,8 @@ import { createDecoderState, detectLanguage } from "./decoder";
 import { generate } from "./generate";
 import { computeDtw } from "./dtw";
 import { buildSegments, buildWords } from "./words";
-import { dedupeBoundary, joinText, planChunks } from "../../speech/segment";
+import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../speech/segment";
+import { padWindow } from "../../audio/pad";
 import { assertWhisperShape, parseSafetensors } from "../../formats/safetensors";
 import { parseGguf } from "../../formats/gguf";
 import { createWhisperWeights } from "./weights";
@@ -31,6 +32,7 @@ import type {
     Transcript,
     WhisperWindowOptions,
     WindowResult,
+    Word,
 } from "../../tensor/types";
 const
     /** Load a Whisper model from a store. */
@@ -100,13 +102,35 @@ const
             tensors,
         };
     },
+    /** Keep a reported time non negative. */
+    clampTime = (value: number): number => Math.max(0, value),
+    /** Keep word times non negative. */
+    clampWord = (word: Word): Word => ({
+        word: word.word,
+        start: clampTime(word.start),
+        end: clampTime(word.end),
+    }),
+    /** Keep segment times non negative. */
+    clampSegment = (segment: Segment): Segment => {
+        const start = clampTime(segment.start);
+        return {
+            start,
+            end: Math.max(start, segment.end),
+            text: segment.text,
+            words: segment.words.map(clampWord),
+        };
+    },
     /** Transcribe one audio window of at most 30 seconds. */
     transcribeWindow = (options: WhisperWindowOptions): WindowResult => {
         const
             { model, pcm } = options,
             constant = model.constants,
+            rate = model.mel.samplingRate,
+            window = padWindow({ pcm, samplingRate: rate }),
+            // lead silence shifts times
+            timeOffset = options.timeOffset - window.leadSamples / rate,
             mel = computeMel({
-                pcm,
+                pcm: window.pcm,
                 mel: model.mel,
                 filters: model.melFilters,
                 padToChunk: options.lowLatency !== true,
@@ -186,8 +210,8 @@ const
                     ids: generated,
                     tokenTimes,
                     tokenizer: model.tokenizer,
-                    timeOffset: options.timeOffset,
-                }),
+                    timeOffset,
+                }).map(clampWord),
                 segments = buildSegments({ words });
             return { ids: result.ids, text, words, segments, language };
         }
@@ -195,9 +219,9 @@ const
             const segments = segmentsFromTokens({
                 ids: generated,
                 tokenizer: model.tokenizer,
-                timeOffset: options.timeOffset,
+                timeOffset,
                 constants: constant,
-            });
+            }).map(clampSegment);
             return { ids: result.ids, text, words: [], segments, language };
         }
         return {
@@ -274,13 +298,32 @@ const
         const
             { model, pcm } = options,
             timestamps = options.timestamps,
-            started = performance.now(),
-            duration = pcm.length / model.mel.samplingRate,
+            rate = model.mel.samplingRate,
+            duration = pcm.length / rate,
             singleWindow = model.mel.chunkLength;
         let
             segments: Segment[] = [],
             language = options.language ?? Language.auto,
             text: string;
+        if (!hasSignal({ pcm, samplingRate: rate })) {
+            return {
+                text: "",
+                language,
+                duration,
+                segments: [{
+                    start: 0,
+                    end: duration,
+                    text: "",
+                    words: [],
+                }],
+                meta: {
+                    model: model.name,
+                    rtf: 0,
+                    threads: kernelThreads(),
+                },
+            };
+        }
+        const started = performance.now();
         if (duration <= singleWindow) {
             const result = transcribeWindow({
                 model,

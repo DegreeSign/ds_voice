@@ -1,6 +1,6 @@
 {
     "name": "@degreesign/voice",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "Offline speech recognition and transcription for the browser and Node.js with the SenseVoice and Whisper models",
     "main": "dist/node/degreesign.node.min.js",
     "browser": "dist/browser/degreesign.min.js",

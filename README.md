@@ -391,6 +391,12 @@ The microphone uses `getUserMedia`, an `AudioWorklet` capture with a
 Decoding blocks the calling thread, so a browser page that must stay responsive
 captures audio itself and runs the session in a worker with `microphone: false`.
 
+Audio is gated before inference. A buffer whose mean level stays under
+`-50 dBFS` returns empty text without touching the model, the same floor the
+chunker applies to long audio. An audible buffer shorter than one second is
+centred in silence, so a clipped word gets context on both sides instead of a
+hard edge.
+
 Streaming keeps two regions of text: committed text that will not change, and a
 partial tail that is refreshed. Pending audio is committed at silence
 boundaries, or forced at 30 seconds. Committed audio is dropped, so memory

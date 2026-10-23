@@ -1069,6 +1069,25 @@ export interface SegmentOptions {
     dbFloor?: number;
 }
 
+/** Options for a symmetric silence pad. */
+export interface PadCenterOptions {
+    pcm: Float32Array;
+    minSamples: number;
+}
+
+/** Options for padding up to the minimum window. */
+export interface PadWindowOptions {
+    pcm: Float32Array;
+    samplingRate: number;
+}
+
+/** A buffer centred in silence. */
+export interface PadCenterResult {
+    pcm: Float32Array;
+    /** Samples of silence placed before the audio. */
+    leadSamples: number;
+}
+
 /** Options for a row-major linear layer. */
 export interface LinearOptions {
     input: Float32Array;

@@ -26,7 +26,7 @@ import {
     melEnergies,
     powerSpectrum,
 } from "../../src/speech/mel";
-import { dedupeBoundary, joinText, planChunks } from "../../src/speech/segment";
+import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../src/speech/segment";
 import {
     CHECKPOINT_IDS,
     DEFAULT_MODEL,
@@ -111,6 +111,7 @@ import { decodeFlac } from "../../src/audio/flac";
 import { decodeMp3 } from "../../src/audio/mp3";
 import { decodeWav } from "../../src/audio/wav";
 import { downmix, resampleAudio } from "../../src/audio/resample";
+import { padCenter, padWindow } from "../../src/audio/pad";
 import {
     Language,
     Platform,
@@ -1509,6 +1510,64 @@ const definitions: Array<{
             },
         },
         {
+            name: "speech/segment hasSignal",
+            run: () => {
+                const
+                    audible = new Float32Array(1600).fill(0.1),
+                    silence = new Float32Array(1600),
+                    tiny = new Float32Array(8).fill(0.1);
+                assertEqual(
+                    hasSignal({ pcm: audible, samplingRate: 1600 }),
+                    true,
+                    "audible",
+                );
+                assertEqual(
+                    hasSignal({ pcm: silence, samplingRate: 1600 }),
+                    false,
+                    "silence",
+                );
+                assertEqual(
+                    hasSignal({ pcm: tiny, samplingRate: 1600 }),
+                    true,
+                    "tiny",
+                );
+                assertEqual(
+                    hasSignal({
+                        pcm: audible,
+                        samplingRate: 1600,
+                        dbFloor: -10,
+                    }),
+                    false,
+                    "floor",
+                );
+            },
+        },
+        {
+            name: "audio/pad padCenter",
+            run: () => {
+                const
+                    short = new Float32Array([1, 1]),
+                    centred = padCenter({ pcm: short, minSamples: 6 }),
+                    even = padCenter({ pcm: short, minSamples: 4 }),
+                    long = padCenter({ pcm: short, minSamples: 2 });
+                assertEqual(centred.pcm.length, 6, "centred length");
+                assertEqual(centred.leadSamples, 2, "centred lead");
+                assertClose(centred.pcm[1], 0, "centred silence");
+                assertClose(centred.pcm[2], 1, "centred first");
+                assertClose(centred.pcm[3], 1, "centred second");
+                assertClose(centred.pcm[4], 0, "centred tail");
+                assertEqual(even.leadSamples, 1, "even lead");
+                assertClose(even.pcm[2], 1, "even tail");
+                assertEqual(long.leadSamples, 0, "long lead");
+                assertEqual(long.pcm, short, "long same");
+                const window = padWindow({ pcm: short, samplingRate: 2 });
+                assertEqual(window.pcm.length, 2, "window exact");
+                const padded = padWindow({ pcm: short, samplingRate: 16 });
+                assertEqual(padded.pcm.length, 16, "window one second");
+                assertEqual(padded.leadSamples, 7, "window lead");
+            },
+        },
+        {
             name: "speech/segment dedupeBoundary",
             run: () => {
                 assertEqual(
@@ -2374,6 +2433,29 @@ const definitions: Array<{
                 assertClose(transcript.duration, 64 / 16000, "duration");
                 assertEqual(transcript.meta.model, ModelId.WhisperBase, "meta");
                 assertEqual(transcript.meta.threads, 1, "threads");
+                const silent = transcribeWhisper({
+                    model,
+                    pcm: new Float32Array(16000),
+                    language: Language.en,
+                    timestamps: TimestampMode.none,
+                    lowLatency: true,
+                });
+                assertEqual(silent.text, "", "silent text");
+                assertEqual(silent.segments.length, 1, "silent segments");
+                assertEqual(silent.segments[0].text, "", "silent segment text");
+                assertClose(silent.duration, 1, "silent duration");
+                assertEqual(silent.meta.rtf, 0, "silent rtf");
+                const short = transcribeWhisper({
+                    model,
+                    pcm: new Float32Array(4800).fill(0.2),
+                    language: Language.en,
+                    timestamps: TimestampMode.none,
+                    lowLatency: true,
+                });
+                assertEqual(typeof short.text, "string", "short text");
+                assertClose(short.duration, 0.3, "short duration");
+                assertEqual(short.segments.length, 1, "short segments");
+                assertClose(short.segments[0].end, 0.3, "short end");
             },
         },
         {
@@ -2708,6 +2790,25 @@ const definitions: Array<{
                 assertEqual(transcript.segments.length, 1, "segments");
                 assertEqual(transcript.language, "en", "language");
                 assertClose(transcript.duration, 24 / 16000, "duration");
+                const
+                    silent = transcribeSenseVoice({
+                        model,
+                        pcm: new Float32Array(16000),
+                        language: Language.en,
+                    }),
+                    short = transcribeSenseVoice({
+                        model,
+                        pcm: new Float32Array(4800).fill(0.3),
+                        language: Language.en,
+                    });
+                assertEqual(silent.text, "", "silent text");
+                assertEqual(silent.segments.length, 1, "silent segments");
+                assertEqual(silent.segments[0].text, "", "silent segment text");
+                assertClose(silent.duration, 1, "silent duration");
+                assertEqual(silent.meta.rtf, 0, "silent rtf");
+                assertEqual(typeof short.text, "string", "short text");
+                assertClose(short.duration, 0.3, "short duration");
+                assertEqual(short.segments.length, 1, "short segments");
             },
         },
         {
@@ -3659,6 +3760,38 @@ const definitions: Array<{
                 const transcript = await session.stop();
                 assertEqual(transcript.text, "push live", "push text");
                 assertEqual(session.error, null, "push error");
+            },
+        },
+        {
+            name: "session gates silent audio",
+            run: async () => {
+                const
+                    model = graphModel(),
+                    voice = {
+                        ensureModel: async (): Promise<Model> => model,
+                        transcribe: (input: {
+                            pcm: Float32Array;
+                        }): Transcript => transcribeWhisper({
+                            model,
+                            pcm: input.pcm,
+                            timestamps: TimestampMode.none,
+                            lowLatency: true,
+                        }),
+                    } as unknown as Voice,
+                    session = createSession({
+                        options: { microphone: false },
+                        voice,
+                    });
+                session.push(new Float32Array(16000));
+                const transcript = await session.stop();
+                assertEqual(session.error, null, "silent session error");
+                assertEqual(transcript.text, "", "silent session text");
+                assertEqual(
+                    transcript.segments.length,
+                    1,
+                    "silent session segments",
+                );
+                assertClose(transcript.duration, 1, "silent session duration");
             },
         },
         {
