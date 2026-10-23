@@ -19,6 +19,8 @@ const
     PAGE = 65536,
     /** Least work before splitting a matmul across threads. */
     MIN_POOL_WORK = 4_000_000,
+    /** Fewer rows than this never split across threads. */
+    MIN_POOL_ROWS = 8,
     /** Decode the embedded kernel bytes. */
     decode = (text: string) => {
         const
@@ -54,6 +56,7 @@ const
                     conv2d: WasmKernel["conv2d"];
                     pointwise: WasmKernel["pointwise"];
                     silu: WasmKernel["silu"];
+                    gelu: WasmKernel["gelu"];
                     relativeBias: WasmKernel["relativeBias"];
                     arenaBase: () => number;
                 };
@@ -65,9 +68,11 @@ const
                 conv2d: exports.conv2d,
                 pointwise: exports.pointwise,
                 silu: exports.silu,
+                gelu: exports.gelu,
                 relativeBias: exports.relativeBias,
                 next: Math.ceil((exports.arenaBase() + 1) / 16) * 16,
                 tensors: new WeakMap(),
+                free: new Map(),
                 input: 0,
                 inputSize: 0,
                 output: 0,
@@ -88,6 +93,9 @@ const
     };
 
 let kernelState: WasmKernel | null | undefined;
+
+/** Weight arrays whose arena region was already freed. */
+const released = new WeakSet<Float32Array>();
 
 const
     /** Request the worker count used by the next pool. */
@@ -133,12 +141,21 @@ const
     },
     /** Grow the arena and return an aligned offset. */
     allocate = (kernel: WasmKernel, bytes: number): number => {
+        const size = Math.ceil(bytes / 16) * 16;
+        const spare = kernel.free.get(size);
+        if (spare && spare.length > 0) {
+            const offset = spare.pop() as number;
+            if (spare.length === 0) {
+                kernel.free.delete(size);
+            }
+            return offset;
+        }
         const
             aligned = kernel.next % 16 === 0
                 ? kernel.next
                 : kernel.next + (16 - (kernel.next % 16)),
             start = aligned,
-            end = start + bytes;
+            end = start + size;
         if (end > kernel.memory.buffer.byteLength) {
             kernel.memory.grow(
                 Math.ceil((end - kernel.memory.buffer.byteLength) / PAGE),
@@ -146,6 +163,35 @@ const
         }
         kernel.next = end;
         return start;
+    },
+    /** Return one arena region to the free list. */
+    release = (kernel: WasmKernel, offset: number, bytes: number): void => {
+        const
+            size = Math.ceil(bytes / 16) * 16,
+            spare = kernel.free.get(size);
+        if (spare) {
+            spare.push(offset);
+            return;
+        }
+        kernel.free.set(size, [offset]);
+    },
+    /** Drop the arena copy of one weight array. */
+    releaseTensor = (value: Float32Array): void => {
+        const kernel = kernelState;
+        if (!kernel || released.has(value)) {
+            return;
+        }
+        released.add(value);
+        const mapped = kernel.tensors.get(value);
+        if (mapped !== undefined) {
+            kernel.tensors.delete(value);
+            release(kernel, mapped, value.byteLength);
+            return;
+        }
+        if (value.buffer !== kernel.memory.buffer) {
+            return;
+        }
+        release(kernel, value.byteOffset, value.byteLength);
     },
     /** Copy a tensor into the arena once. */
     tensorOffset = (kernel: WasmKernel, value: Float32Array): number => {
@@ -250,7 +296,9 @@ const
             copyFloats(kernel, inputOffset, input, rows * inDim);
             const
                 work = rows * inDim * outDim,
-                pool = work >= MIN_POOL_WORK ? poolFor(kernel) : null,
+                pool = work >= MIN_POOL_WORK && rows >= MIN_POOL_ROWS
+                    ? poolFor(kernel)
+                    : null,
                 split = pool
                     ? pool.matmul({
                         input: inputOffset,
@@ -453,6 +501,31 @@ const
             return null;
         }
     },
+    /** Apply GELU in place with the SIMD kernel. */
+    wasmGelu = (options: SiluOptions): boolean => {
+        const
+            kernel = getKernel(),
+            { values } = options,
+            offset = options.offset ?? 0,
+            length = options.length ?? values.length - offset;
+        if (!kernel || length <= 0) {
+            return false;
+        }
+        try {
+            const
+                source = values.subarray(offset, offset + length),
+                pointer = scratch(kernel, "input", length);
+            copyFloats(kernel, pointer, source, length);
+            kernel.gelu(pointer, length);
+            values.set(
+                new Float32Array(kernel.memory.buffer, pointer, length),
+                offset,
+            );
+            return true;
+        } catch {
+            return false;
+        }
+    },
     /** Apply SiLU in place with the SIMD kernel. */
     wasmSilu = (options: SiluOptions): boolean => {
         const
@@ -581,11 +654,13 @@ export {
     getKernel,
     kernelThreads,
     prepareThreads,
+    releaseTensor,
     reserveFloats,
     setThreadCount,
     wasmAttention,
     wasmConv1d,
     wasmConv2d,
+    wasmGelu,
     wasmLinear,
     wasmPointwise,
     wasmRelativeBias,

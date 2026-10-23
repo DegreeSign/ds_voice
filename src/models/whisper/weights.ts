@@ -1,10 +1,11 @@
 // Whisper GGUF weight reading.
 import { product } from "../../tensor/binary";
 import {
-    GGUF_CACHE_BYTES,
+    fullCacheBytes,
     ggmlTypeName,
     readGgufTensor,
 } from "../../formats/ggufTensor";
+import { releaseTensor } from "../../tensor/wasm";
 import type {
     CreateGgufWeightsOptions,
     GgufTensorInfo,
@@ -107,8 +108,8 @@ const
             { file } = options,
             infos = new Map<string, TensorInfo>(),
             sources = new Map<string, GgufTensorInfo>(),
-            cache = new Map<string, Float32Array>(),
-            limit = Math.max(0, options.cacheBytes ?? GGUF_CACHE_BYTES);
+            cache = new Map<string, Float32Array>();
+        let totalBytes = 0;
         for (const [name, entry] of file.tensors) {
             const mapped = mapName(name);
             if (!mapped) {
@@ -122,8 +123,12 @@ const
                 numel: product(entry.dims),
             });
             sources.set(mapped, entry);
+            totalBytes += product(entry.dims) * 4;
         }
         const
+            limit = options.cacheBytes === undefined
+                ? fullCacheBytes(totalBytes)
+                : Math.max(0, options.cacheBytes),
             info = (name: string): TensorInfo => {
                 const entry = infos.get(name);
                 if (!entry) {
@@ -132,9 +137,11 @@ const
                 return entry;
             },
             remember = (name: string, value: Float32Array): void => {
-                if (limit <= 0 || value.byteLength > limit) {
+                if (limit <= 0) {
                     return;
                 }
+                // drop any older copy first
+                cache.delete(name);
                 let used = value.byteLength;
                 for (const item of cache.values()) {
                     used += item.byteLength;
@@ -147,6 +154,10 @@ const
                     const dropped = cache.get(oldest);
                     cache.delete(oldest);
                     used -= dropped?.byteLength ?? 0;
+                    if (dropped) {
+                        // free the arena copy too
+                        releaseTensor(dropped);
+                    }
                 }
                 cache.set(name, value);
             },

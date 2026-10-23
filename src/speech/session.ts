@@ -21,8 +21,8 @@ const
     RATE = 16000,
     /** Shortest pending audio that triggers an update. */
     MIN_UPDATE_SECONDS = 0.5,
-    /** Longest pending audio before a forced commit. */
-    MAX_WINDOW_SECONDS = 30,
+    /** Pending audio that forces a commit without a pause. */
+    COMMIT_WINDOW_SECONDS = 12,
     /** Silence length that flushes the pending audio. */
     SILENCE_FLUSH_SECONDS = 5,
     /** Default update cadence for microphone sessions. */
@@ -236,7 +236,7 @@ const
                 language = transcript.language;
                 lastModel = transcript.meta.model;
                 const shouldCommit = flush || sourceEnded ||
-                    pending.length >= MAX_WINDOW_SECONDS * RATE ||
+                    pending.length >= COMMIT_WINDOW_SECONDS * RATE ||
                     shouldCut();
                 if (shouldCommit) {
                     commit({

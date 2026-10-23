@@ -123,7 +123,12 @@ import {
 } from "../../src/speech/whisper";
 import { createSession } from "../../src/speech/session";
 import { captureMicrophone } from "../../src/audio/mic";
-import { kernelThreads, setThreadCount } from "../../src/tensor/wasm";
+import {
+    getKernel,
+    kernelThreads,
+    releaseTensor,
+    setThreadCount,
+} from "../../src/tensor/wasm";
 import {
     createPool as createBrowserPool,
     createPoolAsync as createBrowserPoolAsync,
@@ -139,6 +144,8 @@ import {
 } from "../../src/models/whisper/weights";
 import {
     GGUF_CACHE_BYTES,
+    GGUF_CACHE_CAP_BYTES,
+    fullCacheBytes,
     ggmlTypeName,
     readGgufTensor,
 } from "../../src/formats/ggufTensor";
@@ -1276,6 +1283,32 @@ const definitions: Array<{
             },
         },
         {
+            name: "tensor/wasm arena reuse",
+            run: () => {
+                const
+                    weight = new Float32Array(256 * 4),
+                    input = new Float32Array(4);
+                weight.fill(0.5);
+                input.fill(2);
+                const run = (): Float32Array => linear({
+                    input,
+                    weight,
+                    rows: 1,
+                    inDim: 4,
+                    outDim: 256,
+                });
+                assertClose(run()[0], 4, "arena linear");
+                releaseTensor(weight);
+                const base = getKernel()?.memory.buffer.byteLength ?? 0;
+                for (let round = 0; round < 8; round += 1) {
+                    assertClose(run()[0], 4, "arena linear again");
+                    releaseTensor(weight);
+                }
+                const after = getKernel()?.memory.buffer.byteLength ?? 0;
+                assertEqual(after, base, "arena reused");
+            },
+        },
+        {
             name: "tensor/math nextPow2 and reflect",
             run: () => {
                 assertEqual(nextPow2(1), 1, "one");
@@ -1534,6 +1567,20 @@ const definitions: Array<{
                     () => parseGguf({ bytes: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]) }),
                     "bad magic",
                 );
+            },
+        },
+        {
+            name: "formats/ggufTensor fullCacheBytes",
+            run: () => {
+                const
+                    mega = 1024 * 1024,
+                    floor = GGUF_CACHE_BYTES / mega,
+                    cap = GGUF_CACHE_CAP_BYTES / mega;
+                assertEqual(fullCacheBytes(0) / mega, floor, "empty floor");
+                assertEqual(fullCacheBytes(-1) / mega, floor, "negative floor");
+                assertEqual(fullCacheBytes(64 * mega) / mega, floor, "small floor");
+                assertEqual(fullCacheBytes(300 * mega) / mega, 300, "checkpoint");
+                assertEqual(fullCacheBytes(4096 * mega) / mega, cap, "cap");
             },
         },
         {
@@ -2370,6 +2417,13 @@ const definitions: Array<{
                     cacheBytes: 0,
                 });
                 assertList(uncached.f32("f32t"), [1, 2, 3, 4], "no cache");
+                const evicting = createGgufWeights({
+                    file: parseGguf({ bytes }),
+                    cacheBytes: 16,
+                });
+                assertClose(evicting.f32("q4t")[0], 1, "tiny cache first");
+                assertList(evicting.f32("f32t"), [1, 2, 3, 4], "tiny cache f32");
+                assertClose(evicting.f32("q4t")[0], 1, "tiny cache reload");
             },
         },
         {

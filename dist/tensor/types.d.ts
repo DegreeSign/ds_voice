@@ -459,7 +459,7 @@ export interface ModelOptionsBase {
     language?: Language;
     /** Override for the weights host, defaults to Hugging Face. */
     weightsBaseUrl?: string;
-    /** F32 weight cache cap in MB, defaults to 128. */
+    /** F32 weight cache cap in MB, defaults to the checkpoint. */
     weightCacheMB?: number;
     /** Worker threads for the decode, defaults to 1. */
     threads?: number;
@@ -848,7 +848,7 @@ export interface StoreModelOptions {
     model: ModelId;
     /** Concrete checkpoint that holds the files. */
     checkpoint: CheckpointId;
-    /** F32 weight cache cap in MB, defaults to 128. */
+    /** F32 weight cache cap in MB, defaults to the checkpoint. */
     weightCacheMB?: number;
 }
 /** Options for loading a SenseVoice model from a store. */
@@ -1050,10 +1050,13 @@ export interface WasmKernel {
     conv1d: (input: number, weight: number, bias: number, out: number, inChannels: number, outChannels: number, inLength: number, kernel: number, stride: number, padding: number) => void;
     conv2d: (input: number, weight: number, bias: number, out: number, inChannels: number, inHeight: number, inWidth: number, outChannels: number, kernel: number, stride: number, groups: number) => void;
     silu: (values: number, length: number) => void;
+    gelu: (values: number, length: number) => void;
     pointwise: (input: number, weight: number, bias: number, out: number, tmpIn: number, tmpOut: number, channels: number, outChannels: number, spatial: number) => void;
     relativeBias: (q: number, relK: number, out: number, bd: number, seq: number, heads: number, headDim: number, scale: number) => void;
     next: number;
     tensors: WeakMap<Float32Array, number>;
+    /** Released arena regions grouped by byte size. */
+    free: Map<number, number[]>;
     input: number;
     inputSize: number;
     output: number;

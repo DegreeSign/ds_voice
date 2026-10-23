@@ -5,6 +5,18 @@ import type { ReadGgufTensorOptions } from "../tensor/types";
 const
     /** Default F32 cache budget in bytes. */
     GGUF_CACHE_BYTES = 128 * 1024 * 1024,
+    /** Largest automatic cache budget in bytes. */
+    GGUF_CACHE_CAP_BYTES = 1024 * 1024 * 1024,
+    /** Budget that holds every tensor of a checkpoint once. */
+    fullCacheBytes = (total: number): number => {
+        if (total <= 0) {
+            return GGUF_CACHE_BYTES;
+        }
+        return Math.min(
+            GGUF_CACHE_CAP_BYTES,
+            Math.max(GGUF_CACHE_BYTES, total),
+        );
+    },
     /** ggml type code for f32. */
     GGML_F32 = 0,
     /** ggml type code for f16. */
@@ -278,6 +290,8 @@ const ggmlTypeName = (type: number): string => {
 
 export {
     GGUF_CACHE_BYTES,
+    GGUF_CACHE_CAP_BYTES,
+    fullCacheBytes,
     GGML_F32,
     GGML_F16,
     GGML_Q8_0,

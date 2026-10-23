@@ -151,7 +151,7 @@ is `TranscribeBase` combined with the source and download fields.
 | `allowedDiskSpaceMB` | `number` | Cache cap in MB. Defaults to `512`. |
 | `updateIntervalMs` | `number` | Microphone update cadence. Defaults to `1000`. |
 | `weightsBaseUrl` | `string` | Weights host, defaults to `https://huggingface.co`. |
-| `weightCacheMB` | `number` | F32 weight cache cap in MB. Defaults to `128`. |
+| `weightCacheMB` | `number` | F32 weight cache cap in MB. Defaults to the whole checkpoint, capped at `1024`. |
 | `threads` | `number` | Worker threads for the decode. Defaults to `1`. |
 | `onProgress` | `(progress) => void` | Download progress across every file of the model. |
 
@@ -294,13 +294,22 @@ use worker threads directly; browsers need cross origin isolation, served with
 `Cross-Origin-Embedder-Policy: require-corp`, and the session should run inside a
 worker because the split wait blocks its thread. Without isolation, or with
 `threads: 1`, the engine uses the single thread path. On a 3.1 GHz eight thread
-i7, an 11 second English clip decodes in about 1 second on Whisper Base and 2
-seconds on SenseVoice Small, both faster than real time. The weights are copied
-into a shared SIMD arena on first access; the Q4_K_M weights are dequantized
-into a byte capped F32 cache, sized by `weightCacheMB`, 128 MB by default.
+i7, an 11 second English clip decodes in about 3 seconds on Whisper Base with
+`threads: 8` and the default weight cache.
+
+The Q4_K_M weights are dequantized into a byte capped F32 cache on first
+access. By default that cache holds the whole checkpoint once, so a window
+never pays for the same tensor twice; pass `weightCacheMB` to keep the resident
+set smaller at the cost of re-dequantization. The arena behind the kernels
+reuses freed regions, so a long running session keeps a steady footprint
+instead of growing with every window.
 
 Updates arrive as fast as inference allows. Inference blocks the calling
 thread, so in the browser run the session inside a worker for a responsive UI.
+A session commits its pending audio at a pause, at 12 seconds without one, or
+when stopped, and decodes the whole pending buffer on every update. Raise
+`updateIntervalMs` when the pending window is long and the decode cannot keep
+up with the update cadence.
 
 ## FAQ
 

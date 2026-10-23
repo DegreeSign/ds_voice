@@ -3,6 +3,8 @@
 #include <wasm_simd128.h>
 
 #define MATMUL_ROWS 16
+#define ATTN_BLOCK 16
+#define ATTN_MAX_DIM 64
 
 static inline float dot4(const float *a, const float *b, int length) {
     v128_t a0 = wasm_f32x4_splat(0.0f);
@@ -107,6 +109,24 @@ static inline float expfFast(float x) {
     } scale;
     scale.i = (k + 127) << 23;
     return p * scale.f;
+}
+
+/** GELU with the same erf polynomial as the JavaScript path. */
+__attribute__((visibility("default")))
+void gelu(float *values, int length) {
+    const float inv = 0.7071067811865476f;
+    int i = 0;
+    for (; i < length; i++) {
+        const float x = values[i];
+        const float z = x * inv;
+        const float sign = z < 0.0f ? -1.0f : 1.0f;
+        const float ax = z < 0.0f ? -z : z;
+        const float t = 1.0f / (1.0f + 0.3275911f * ax);
+        const float poly = ((((1.061405429f * t - 1.453152027f) * t +
+            1.421413741f) * t - 0.284496736f) * t + 0.254829592f) * t;
+        const float erf = sign * (1.0f - poly * expfFast(-ax * ax));
+        values[i] = 0.5f * x * (1.0f + erf);
+    }
 }
 
 __attribute__((visibility("default")))
@@ -270,52 +290,109 @@ void relativeBias(const float *q, const float *relK, float *out, float *bd,
     }
 }
 
-__attribute__((visibility("default")))
-void attention(const float *q, const float *k, const float *v, const float *bias,
-               float *out, float *scores, int seqQ, int seqK, int heads,
-               int headDim, float scale, int causal) {
+static void attentionBlocked(const float *q, const float *k, const float *v,
+                             const float *bias, float *out, float *scores,
+                             int seqQ, int seqK, int heads, int headDim,
+                             float scale, int causal) {
     const int dim = heads * headDim;
-    const int block = 16;
+    const int block = ATTN_BLOCK;
     for (int h = 0; h < heads; h++) {
         const int offset = h * headDim;
         for (int start = 0; start < seqQ; start += block) {
             const int rows = seqQ - start < block ? seqQ - start : block;
-            for (int i = 0; i < rows; i++) {
-                const int position = start + i;
-                const float *qRow = q + (long)position * dim + offset;
-                float *score = scores + (long)i * seqK;
-                float max = -3.402823466e+38f;
-                for (int j = 0; j < seqK; j++) {
-                    const float *kRow = k + (long)j * dim + offset;
-                    float value = dot4(qRow, kRow, headDim) * scale;
+            // score every query in the block against one key row
+            for (int j = 0; j < seqK; j++) {
+                const float *kRow = k + (long)j * dim + offset;
+                for (int i = 0; i < rows; i++) {
+                    const int position = start + i;
+                    float value = dot4(
+                        q + (long)position * dim + offset, kRow, headDim
+                    ) * scale;
                     if (bias) {
                         value += bias[((long)h * seqQ + position) * seqK + j];
                     }
                     if (causal && j > position) {
                         value = -3.402823466e+38f;
                     }
-                    score[j] = value;
-                    if (value > max) {
-                        max = value;
+                    scores[(long)i * seqK + j] = value;
+                }
+            }
+            for (int i = 0; i < rows; i++) {
+                float *score = scores + (long)i * seqK;
+                v128_t maxv = wasm_f32x4_splat(-3.402823466e+38f);
+                int j = 0;
+                for (; j + 3 < seqK; j += 4) {
+                    maxv = wasm_f32x4_max(maxv, wasm_v128_load(score + j));
+                }
+                float max = wasm_f32x4_extract_lane(maxv, 0);
+                const float max1 = wasm_f32x4_extract_lane(maxv, 1);
+                const float max2 = wasm_f32x4_extract_lane(maxv, 2);
+                const float max3 = wasm_f32x4_extract_lane(maxv, 3);
+                if (max1 > max) {
+                    max = max1;
+                }
+                if (max2 > max) {
+                    max = max2;
+                }
+                if (max3 > max) {
+                    max = max3;
+                }
+                for (; j < seqK; j++) {
+                    if (score[j] > max) {
+                        max = score[j];
                     }
                 }
-                float sum = 0.0f;
-                for (int j = 0; j < seqK; j++) {
+                const v128_t shift = wasm_f32x4_splat(max);
+                v128_t sumv = wasm_f32x4_splat(0.0f);
+                j = 0;
+                for (; j + 3 < seqK; j += 4) {
+                    const v128_t e = expf4(wasm_f32x4_sub(
+                        wasm_v128_load(score + j), shift
+                    ));
+                    wasm_v128_store(score + j, e);
+                    sumv = wasm_f32x4_add(sumv, e);
+                }
+                float sum = wasm_f32x4_extract_lane(sumv, 0) +
+                    wasm_f32x4_extract_lane(sumv, 1) +
+                    wasm_f32x4_extract_lane(sumv, 2) +
+                    wasm_f32x4_extract_lane(sumv, 3);
+                for (; j < seqK; j++) {
                     const float e = expfFast(score[j] - max);
                     score[j] = e;
                     sum += e;
                 }
                 const float inv = 1.0f / sum;
-                float *outRow = out + (long)position * dim + offset;
-                for (int d = 0; d < headDim; d++) {
-                    outRow[d] = 0.0f;
+                const v128_t invv = wasm_f32x4_splat(inv);
+                j = 0;
+                for (; j + 3 < seqK; j += 4) {
+                    wasm_v128_store(
+                        score + j,
+                        wasm_f32x4_mul(wasm_v128_load(score + j), invv)
+                    );
                 }
-                for (int j = 0; j < seqK; j++) {
-                    const float weight = score[j] * inv;
+                for (; j < seqK; j++) {
+                    score[j] *= inv;
+                }
+                const long outRow = (long)(start + i) * dim + offset;
+                for (int d = 0; d < headDim; d++) {
+                    out[outRow + d] = 0.0f;
+                }
+            }
+            // one value row feeds every query in the block
+            float acc[ATTN_BLOCK * ATTN_MAX_DIM];
+            for (int i = 0; i < rows; i++) {
+                for (int d = 0; d < headDim; d++) {
+                    acc[i * ATTN_MAX_DIM + d] = 0.0f;
+                }
+            }
+            for (int j = 0; j < seqK; j++) {
+                const float *vRow = v + (long)j * dim + offset;
+                for (int i = 0; i < rows; i++) {
+                    const float weight = scores[(long)i * seqK + j];
                     if (weight == 0.0f) {
                         continue;
                     }
-                    const float *vRow = v + (long)j * dim + offset;
+                    float *outRow = acc + i * ATTN_MAX_DIM;
                     int d = 0;
                     const v128_t w = wasm_f32x4_splat(weight);
                     for (; d + 3 < headDim; d += 4) {
@@ -331,6 +408,100 @@ void attention(const float *q, const float *k, const float *v, const float *bias
                     }
                 }
             }
+            for (int i = 0; i < rows; i++) {
+                float *outRow = out + (long)(start + i) * dim + offset;
+                for (int d = 0; d < headDim; d++) {
+                    outRow[d] = acc[i * ATTN_MAX_DIM + d];
+                }
+            }
         }
     }
+}
+
+static void attentionRows(const float *q, const float *k, const float *v,
+                          const float *bias, float *out, float *scores,
+                          int seqQ, int seqK, int heads, int headDim,
+                          float scale, int causal) {
+    const int dim = heads * headDim;
+    for (int h = 0; h < heads; h++) {
+        const int offset = h * headDim;
+        for (int i = 0; i < seqQ; i++) {
+            const float *qRow = q + (long)i * dim + offset;
+            float *score = scores;
+            float max = -3.402823466e+38f;
+            for (int j = 0; j < seqK; j++) {
+                const float *kRow = k + (long)j * dim + offset;
+                float value = dot4(qRow, kRow, headDim) * scale;
+                if (bias) {
+                    value += bias[((long)h * seqQ + i) * seqK + j];
+                }
+                if (causal && j > i) {
+                    value = -3.402823466e+38f;
+                }
+                score[j] = value;
+                if (value > max) {
+                    max = value;
+                }
+            }
+            float sum = 0.0f;
+            int j = 0;
+            for (; j + 3 < seqK; j += 4) {
+                const v128_t e = expf4(wasm_f32x4_sub(
+                    wasm_v128_load(score + j), wasm_f32x4_splat(max)
+                ));
+                wasm_v128_store(score + j, e);
+                sum += wasm_f32x4_extract_lane(e, 0) +
+                    wasm_f32x4_extract_lane(e, 1) +
+                    wasm_f32x4_extract_lane(e, 2) +
+                    wasm_f32x4_extract_lane(e, 3);
+            }
+            for (; j < seqK; j++) {
+                const float e = expfFast(score[j] - max);
+                score[j] = e;
+                sum += e;
+            }
+            const float inv = 1.0f / sum;
+            float *outRow = out + (long)i * dim + offset;
+            for (int d = 0; d < headDim; d++) {
+                outRow[d] = 0.0f;
+            }
+            for (int key = 0; key < seqK; key++) {
+                const float weight = score[key] * inv;
+                if (weight == 0.0f) {
+                    continue;
+                }
+                const float *vRow = v + (long)key * dim + offset;
+                int d = 0;
+                const v128_t w = wasm_f32x4_splat(weight);
+                for (; d + 3 < headDim; d += 4) {
+                    wasm_v128_store(
+                        outRow + d,
+                        wasm_f32x4_add(
+                            wasm_v128_load(outRow + d),
+                            wasm_f32x4_mul(w, wasm_v128_load(vRow + d))
+                        )
+                    );
+                }
+                for (; d < headDim; d++) {
+                    outRow[d] += weight * vRow[d];
+                }
+            }
+        }
+    }
+}
+
+__attribute__((visibility("default")))
+void attention(const float *q, const float *k, const float *v, const float *bias,
+               float *out, float *scores, int seqQ, int seqK, int heads,
+               int headDim, float scale, int causal) {
+    if (headDim <= 64) {
+        attentionBlocked(
+            q, k, v, bias, out, scores, seqQ, seqK, heads, headDim, scale,
+            causal
+        );
+        return;
+    }
+    attentionRows(
+        q, k, v, bias, out, scores, seqQ, seqK, heads, headDim, scale, causal
+    );
 }

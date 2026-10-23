@@ -1,5 +1,5 @@
 // Shared numeric kernels.
-import { wasmAttention, wasmLinear, wasmSilu } from "./wasm";
+import { wasmAttention, wasmGelu, wasmLinear, wasmSilu } from "./wasm";
 import type {
     AttentionOptions,
     LayerNormOptions,
@@ -22,6 +22,9 @@ const
     },
     /** Apply GELU in place. */
     geluInPlace = (options: { values: Float32Array; length: number }): void => {
+        if (wasmGelu(options)) {
+            return;
+        }
         const
             { values, length } = options,
             inv = 1 / Math.SQRT2;

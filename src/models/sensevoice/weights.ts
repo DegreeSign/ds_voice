@@ -1,8 +1,10 @@
 // SenseVoice GGUF weight reading.
 import {
     GGUF_CACHE_BYTES,
+    fullCacheBytes,
     readGgufTensor,
 } from "../../formats/ggufTensor";
+import { releaseTensor } from "../../tensor/wasm";
 import type {
     CreateGgufWeightsOptions,
     SenseVoiceWeights,
@@ -15,8 +17,19 @@ const
         const
             { file } = options,
             { tensors } = file,
-            cache = new Map<string, Float32Array>(),
-            limit = Math.max(0, options.cacheBytes ?? GGUF_CACHE_BYTES),
+            cache = new Map<string, Float32Array>();
+        let totalBytes = 0;
+        for (const entry of tensors.values()) {
+            let numel = 1;
+            for (const dim of entry.dims) {
+                numel *= dim;
+            }
+            totalBytes += numel * 4;
+        }
+        const
+            limit = options.cacheBytes === undefined
+                ? fullCacheBytes(totalBytes)
+                : Math.max(0, options.cacheBytes),
             info = (name: string) => {
                 const entry = tensors.get(name);
                 if (!entry) {
@@ -26,9 +39,11 @@ const
             },
             shape = (name: string): number[] => [...info(name).dims].reverse(),
             remember = (name: string, value: Float32Array): void => {
-                if (limit <= 0 || value.byteLength > limit) {
+                if (limit <= 0) {
                     return;
                 }
+                // drop any older copy first
+                cache.delete(name);
                 let used = value.byteLength;
                 for (const item of cache.values()) {
                     used += item.byteLength;
@@ -41,6 +56,10 @@ const
                     const dropped = cache.get(oldest);
                     cache.delete(oldest);
                     used -= dropped?.byteLength ?? 0;
+                    if (dropped) {
+                        // free the arena copy too
+                        releaseTensor(dropped);
+                    }
                 }
                 cache.set(name, value);
             },

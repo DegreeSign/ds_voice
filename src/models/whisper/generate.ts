@@ -194,7 +194,7 @@ const
                 capture,
             });
             attention.push(result.captures);
-            const logits = result.logits.slice();
+            const logits = result.logits;
             processLogits({
                 logits,
                 allIds,
