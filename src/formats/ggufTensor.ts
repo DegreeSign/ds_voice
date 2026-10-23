@@ -236,7 +236,12 @@ const
             return f32View({ bytes: buffer, base, count: numel });
         }
         if (info.type === GGML_F16) {
-            return readF16({ bytes: buffer, offset: base, count: numel });
+            return readF16({
+                bytes: buffer,
+                offset: base,
+                count: numel,
+                out: reserveFloats(numel) ?? undefined,
+            });
         }
         if (info.type === GGML_Q8_0) {
             const

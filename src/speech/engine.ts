@@ -11,7 +11,7 @@ import {
     forgetModel,
     touchModel,
 } from "../store/usage";
-import { DEFAULT_MODEL, MODEL_SPECS, resolveSpec } from "../models/specs";
+import { DEFAULT_MODEL, resolveSpec } from "../models/specs";
 import { prepareThreads } from "../tensor/wasm";
 import { ProgressPhase } from "../tensor/types";
 import type {
@@ -26,6 +26,7 @@ import type {
     ModelSpec,
     ModelStore,
     PrepareModelOptions,
+    Quality,
     TranscribeAudioOptions,
     Transcript,
     Voice,
@@ -37,6 +38,7 @@ const
             cached: {
                 model: ModelId;
                 checkpoint: CheckpointId;
+                quality: Quality;
                 value: Model;
             } | null = null,
             queue: Promise<void> = Promise.resolve(),
@@ -59,6 +61,7 @@ const
                     store,
                     model: options.model,
                     language: options.language,
+                    quality: options.quality,
                     weightsBaseUrl: options.weightsBaseUrl,
                     onProgress: options.onProgress,
                 });
@@ -66,12 +69,11 @@ const
             loadFamily = async (options: {
                 store: ModelStore;
                 model: ModelId;
-                checkpoint: CheckpointId;
+                spec: ModelSpec;
                 weightCacheMB?: number;
             }): Promise<Model> => {
                 const
-                    { store, model, checkpoint, weightCacheMB } = options,
-                    spec = MODEL_SPECS[checkpoint],
+                    { store, model, spec, weightCacheMB } = options,
                     family = input.families[spec.family];
                 if (!family) {
                     throw new Error(`model family not bundled ${spec.family}`);
@@ -79,7 +81,8 @@ const
                 return await family.load({
                     store,
                     model,
-                    checkpoint,
+                    checkpoint: spec.checkpoint,
+                    spec,
                     weightCacheMB,
                 });
             },
@@ -107,6 +110,7 @@ const
                     spec = resolveSpec({
                         model,
                         language: options.language,
+                        quality: options.quality,
                     });
                 let
                     finalLoaded = 0,
@@ -115,6 +119,7 @@ const
                     store,
                     model,
                     language: options.language,
+                    quality: options.quality,
                     weightsBaseUrl: options.weightsBaseUrl,
                     onProgress: (progress) => {
                         finalLoaded = progress.loaded;
@@ -132,7 +137,7 @@ const
                 return await loadFamily({
                     store,
                     model,
-                    checkpoint: spec.checkpoint,
+                    spec,
                     weightCacheMB: options.weightCacheMB,
                 });
             },
@@ -161,6 +166,7 @@ const
                     spec = resolveSpec({
                         model: options.model,
                         language: options.language,
+                        quality: options.quality,
                     });
                 return await isCheckpointCached({ store, spec });
             },
@@ -172,11 +178,14 @@ const
                     spec = resolveSpec({
                         model,
                         language: options.language,
+                        quality: options.quality,
                     });
                 if (
                     cached?.model === model &&
-                    cached.checkpoint === spec.checkpoint
+                    cached.checkpoint === spec.checkpoint &&
+                    cached.quality === spec.quality
                 ) {
+                    await prepareThreads(options.threads);
                     return cached.value;
                 }
                 let release = (): void => undefined;
@@ -188,8 +197,10 @@ const
                 try {
                     if (
                         cached?.model === model &&
-                        cached.checkpoint === spec.checkpoint
+                        cached.checkpoint === spec.checkpoint &&
+                        cached.quality === spec.quality
                     ) {
+                        await prepareThreads(options.threads);
                         return cached.value;
                     }
                     const store = await resolveStore();
@@ -197,6 +208,7 @@ const
                         store,
                         model,
                         language: options.language,
+                        quality: options.quality,
                         allowedDiskSpaceMB: options.allowedDiskSpaceMB ??
                             DEFAULT_DISK_SPACE_MB,
                     });
@@ -207,6 +219,7 @@ const
                         store,
                         model,
                         language: options.language,
+                        quality: options.quality,
                         weightsBaseUrl: options.weightsBaseUrl,
                         onProgress: (progress) => {
                             finalLoaded = progress.loaded;
@@ -225,12 +238,13 @@ const
                     const value = await loadFamily({
                         store,
                         model,
-                        checkpoint: spec.checkpoint,
+                        spec,
                         weightCacheMB: options.weightCacheMB,
                     });
                     cached = {
                         model,
                         checkpoint: spec.checkpoint,
+                        quality: spec.quality,
                         value,
                     };
                     return value;

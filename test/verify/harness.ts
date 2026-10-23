@@ -30,11 +30,14 @@ import { dedupeBoundary, joinText, planChunks } from "../../src/speech/segment";
 import {
     CHECKPOINT_IDS,
     DEFAULT_MODEL,
+    DEFAULT_QUALITY,
     HF_BASE,
     MODEL_IDS,
     MODEL_SPECS,
+    checkpointFiles,
     checkpointKey,
     resolveSpec,
+    weightFiles,
 } from "../../src/models/specs";
 import { ModelFamily, ModelId } from "../../src/tensor/types";
 import { parseGguf } from "../../src/formats/gguf";
@@ -112,6 +115,8 @@ import {
     Language,
     Platform,
     ProgressPhase,
+    Quality,
+    ThreadCount,
     TimestampMode,
 } from "../../src/tensor/types";
 import { createVoice, getVoice } from "../../src/speech/voice";
@@ -1209,6 +1214,12 @@ const definitions: Array<{
                 assertList(values, [1, 0.5, -2], "readF16");
                 const offset = readF16({ bytes, offset: 2, count: 2 });
                 assertList(offset, [0.5, -2], "readF16 offset");
+                const out = new Float32Array(3);
+                assert(
+                    readF16({ bytes, offset: 0, count: 3, out }) === out,
+                    "readF16 out",
+                );
+                assertList(out, [1, 0.5, -2], "readF16 out values");
             },
         },
         {
@@ -1545,9 +1556,25 @@ const definitions: Array<{
             run: () => {
                 assertEqual(HF_BASE, "https://huggingface.co", "hf base");
                 assertEqual(DEFAULT_MODEL, ModelId.WhisperBase, "default");
+                assertEqual(DEFAULT_QUALITY, Quality.High, "default quality");
                 assertEqual(MODEL_IDS.length, 2, "model ids");
                 assertEqual(CHECKPOINT_IDS.length, 3, "checkpoints");
                 assert(MODEL_SPECS[ModelId.WhisperBase] !== undefined, "spec");
+                assertEqual(
+                    weightFiles(MODEL_SPECS[ModelId.WhisperBase]).join(","),
+                    [
+                        "whisper-base-F16.gguf",
+                        "whisper-base-Q8_0.gguf",
+                        "whisper-base-Q4_K_M.gguf",
+                    ].join(","),
+                    "weight files",
+                );
+                const checkpoint = checkpointFiles(
+                    MODEL_SPECS[ModelId.WhisperBase],
+                );
+                assert(checkpoint.includes("config.json"), "checkpoint text");
+                assert(checkpoint.includes("whisper-base-F16.gguf"), "weight high");
+                assert(checkpoint.includes("whisper-base-Q4_K_M.gguf"), "weight low");
                 assertEqual(
                     checkpointKey({
                         checkpoint: ModelId.WhisperBase,
@@ -1582,8 +1609,33 @@ const definitions: Array<{
                         model: ModelId.WhisperBase,
                         language: Language.auto,
                     }).weightFile,
+                    "whisper-base-F16.gguf",
+                    "high quality weight",
+                );
+                assertEqual(
+                    resolveSpec({
+                        model: ModelId.WhisperBase,
+                        quality: Quality.Medium,
+                    }).weightFile,
+                    "whisper-base-Q8_0.gguf",
+                    "medium quality weight",
+                );
+                assertEqual(
+                    resolveSpec({
+                        model: ModelId.WhisperBase,
+                        quality: Quality.Low,
+                    }).weightFile,
                     "whisper-base-Q4_K_M.gguf",
-                    "quantized weight",
+                    "low quality weight",
+                );
+                assertEqual(
+                    resolveSpec({
+                        model: ModelId.WhisperBase,
+                        language: Language.en,
+                        quality: Quality.Low,
+                    }).weightFile,
+                    "whisper-base.en-Q4_K_M.gguf",
+                    "english low weight",
                 );
                 assertEqual(
                     resolveSpec({
@@ -1623,6 +1675,12 @@ const definitions: Array<{
                 assertEqual(ModelFamily.SenseVoice, "sensevoice", "sensevoice family");
                 assertEqual(ModelId.SenseVoiceSmall, "sensevoice-small", "sensevoice id");
                 assertEqual(ModelId.WhisperBase, "whisper-base", "whisper id");
+                assertEqual(Quality.High, "high", "high quality");
+                assertEqual(Quality.Medium, "medium", "medium quality");
+                assertEqual(Quality.Low, "low", "low quality");
+                assertEqual(ThreadCount.Two, 2, "two threads");
+                assertEqual(ThreadCount.Four, 4, "four threads");
+                assertEqual(ThreadCount.Eight, 8, "eight threads");
             },
         },
         {
@@ -1979,6 +2037,55 @@ const definitions: Array<{
             },
         },
         {
+            name: "store/download quality selection",
+            run: async () => {
+                const
+                    high = resolveSpec({
+                        model: ModelId.WhisperBase,
+                        quality: Quality.High,
+                    }),
+                    low = resolveSpec({
+                        model: ModelId.WhisperBase,
+                        quality: Quality.Low,
+                    }),
+                    texts: Record<string, string> = {},
+                    bytes: Record<string, Uint8Array> = {};
+                for (const file of low.files) {
+                    const key = checkpointKey({
+                        checkpoint: low.checkpoint,
+                        file,
+                    });
+                    if (file === low.weightFile) {
+                        bytes[key] = new Uint8Array([0]);
+                    } else {
+                        texts[key] = "{}";
+                    }
+                }
+                const store = fakeStore({ texts, bytes });
+                assertEqual(
+                    await isCheckpointCached({ store, spec: low }),
+                    true,
+                    "low cached",
+                );
+                assertEqual(
+                    await isCheckpointCached({ store, spec: high }),
+                    false,
+                    "high missing",
+                );
+                const prepared = await prepareModel({
+                    store,
+                    model: ModelId.WhisperBase,
+                    quality: Quality.Low,
+                });
+                assertEqual(prepared.quality, Quality.Low, "prepared quality");
+                assertEqual(
+                    prepared.weightFile,
+                    "whisper-base-Q4_K_M.gguf",
+                    "prepared weight",
+                );
+            },
+        },
+        {
             name: "whisper/model loadWhisper",
             run: async () => {
                 const
@@ -2025,6 +2132,7 @@ const definitions: Array<{
                         store,
                         model: ModelId.WhisperBase,
                         checkpoint: ModelId.WhisperBase,
+                        spec: resolveSpec({ model: ModelId.WhisperBase }),
                     });
                 assertEqual(loaded.kind, ModelFamily.Whisper, "kind");
                 assertEqual(loaded.config.dModel, 4, "dModel");
@@ -2089,6 +2197,10 @@ const definitions: Array<{
                         store,
                         model: ModelId.WhisperBase,
                         checkpoint,
+                        spec: resolveSpec({
+                            model: ModelId.WhisperBase,
+                            language: Language.en,
+                        }),
                     });
                 assertEqual(loaded.name, ModelId.WhisperBase, "public name");
                 assertEqual(loaded.constants.isMultilingual, false, "english");
@@ -2144,6 +2256,7 @@ const definitions: Array<{
                         store,
                         model: ModelId.WhisperBase,
                         checkpoint,
+                        spec,
                     });
                 assertEqual(loaded.tensors.info(
                     "model.decoder.embed_tokens.weight",
@@ -2549,7 +2662,7 @@ const definitions: Array<{
                         bytes: {
                             [checkpointKey({
                                 checkpoint: ModelId.SenseVoiceSmall,
-                                file: "SenseVoiceSmall-Q4_K_M.gguf",
+                                file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
                             })]: senseVoiceGguf(config),
                         },
                     }),
@@ -2557,6 +2670,7 @@ const definitions: Array<{
                         store,
                         model: ModelId.SenseVoiceSmall,
                         checkpoint: ModelId.SenseVoiceSmall,
+                        spec: MODEL_SPECS[ModelId.SenseVoiceSmall],
                     });
                 assertEqual(loaded.kind, ModelFamily.SenseVoice, "kind");
                 assertEqual(loaded.config.dModel, 4, "dModel");
@@ -2574,7 +2688,7 @@ const definitions: Array<{
                         bytes: {
                             [checkpointKey({
                                 checkpoint: ModelId.SenseVoiceSmall,
-                                file: "SenseVoiceSmall-Q4_K_M.gguf",
+                                file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
                             })]: senseVoiceGguf(config),
                         },
                     }),
@@ -2582,6 +2696,7 @@ const definitions: Array<{
                         store,
                         model: ModelId.SenseVoiceSmall,
                         checkpoint: ModelId.SenseVoiceSmall,
+                        spec: MODEL_SPECS[ModelId.SenseVoiceSmall],
                     }),
                     transcript = transcribeSenseVoice({
                         model,
@@ -2891,9 +3006,9 @@ const definitions: Array<{
                 );
                 const
                     original = globalThis.fetch,
-                    savedBytes = spec.weightBytes,
+                    savedBytes = spec.weights[Quality.High].bytes,
                     requested: string[] = [];
-                spec.weightBytes = 4;
+                spec.weights[Quality.High].bytes = 4;
                 globalThis.fetch = (async (input: RequestInfo | URL) => {
                     const url = String(input);
                     requested.push(url);
@@ -2910,7 +3025,7 @@ const definitions: Array<{
                     });
                 } finally {
                     globalThis.fetch = original;
-                    spec.weightBytes = savedBytes;
+                    spec.weights[Quality.High].bytes = savedBytes;
                 }
                 assert(requested.length > 0, "fetched");
                 assertEqual(
@@ -2963,9 +3078,9 @@ const definitions: Array<{
                             binaries.delete(key);
                         },
                     },
-                    savedBytes = spec.weightBytes,
+                    savedBytes = spec.weights[Quality.High].bytes,
                     original = globalThis.fetch;
-                spec.weightBytes = 4;
+                spec.weights[Quality.High].bytes = 4;
                 globalThis.fetch = (async (input: RequestInfo | URL) => {
                     const url = String(input);
                     const weight = url.endsWith(spec.weightFile);
@@ -2983,7 +3098,7 @@ const definitions: Array<{
                     await prepareModel({ store, model: ModelId.WhisperBase });
                 } finally {
                     globalThis.fetch = original;
-                    spec.weightBytes = savedBytes;
+                    spec.weights[Quality.High].bytes = savedBytes;
                 }
                 assertEqual(
                     await store.hasBinary?.(weightKey),
@@ -3002,7 +3117,7 @@ const definitions: Array<{
             run: async () => {
                 const
                     spec = MODEL_SPECS[ModelId.SenseVoiceSmall],
-                    savedBytes = spec.weightBytes,
+                    savedBytes = spec.weights[Quality.High].bytes,
                     total = CHUNK_BYTES * 2,
                     key = checkpointKey({
                         checkpoint: spec.checkpoint,
@@ -3073,7 +3188,7 @@ const definitions: Array<{
                     key,
                     sizes: [CHUNK_BYTES, 0],
                 });
-                spec.weightBytes = total;
+                spec.weights[Quality.High].bytes = total;
                 let failOnce = true;
                 globalThis.fetch = (async (
                     input: RequestInfo | URL,
@@ -3122,7 +3237,7 @@ const definitions: Array<{
                     });
                 } finally {
                     globalThis.fetch = original;
-                    spec.weightBytes = savedBytes;
+                    spec.weights[Quality.High].bytes = savedBytes;
                 }
                 assertEqual(
                     await isCheckpointCached({ store, spec }),
@@ -3167,7 +3282,7 @@ const definitions: Array<{
                         bytes: {
                             [checkpointKey({
                                 checkpoint: ModelId.SenseVoiceSmall,
-                                file: "SenseVoiceSmall-Q4_K_M.gguf",
+                                file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
                             })]: senseVoiceGguf(config),
                         },
                     }),
@@ -3205,7 +3320,7 @@ const definitions: Array<{
                 assertEqual(
                     await store.exists(checkpointKey({
                         checkpoint: ModelId.SenseVoiceSmall,
-                        file: "SenseVoiceSmall-Q4_K_M.gguf",
+                        file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
                     })),
                     false,
                     "deleted",
@@ -3221,7 +3336,7 @@ const definitions: Array<{
                         bytes: {
                             [checkpointKey({
                                 checkpoint: ModelId.SenseVoiceSmall,
-                                file: "SenseVoiceSmall-Q4_K_M.gguf",
+                                file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
                             })]: senseVoiceGguf(config),
                         },
                     }),
@@ -3660,6 +3775,12 @@ const definitions: Array<{
                 );
                 assertEqual(entry.ProgressPhase.download, "download", "phase");
                 assertEqual(entry.ProgressPhase.decode, "decode", "decode phase");
+                assertEqual(entry.Quality.High, "high", "quality high");
+                assertEqual(entry.Quality.Medium, "medium", "quality medium");
+                assertEqual(entry.Quality.Low, "low", "quality low");
+                assertEqual(entry.ThreadCount.Two, 2, "threads two");
+                assertEqual(entry.ThreadCount.Four, 4, "threads four");
+                assertEqual(entry.ThreadCount.Eight, 8, "threads eight");
                 assertEqual(entry.Language.en, "en", "language");
                 assertEqual(entry.Language.auto, "auto", "auto language");
                 assertEqual(entry.TimestampMode.none, "none", "timestamp none");

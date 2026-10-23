@@ -4,8 +4,10 @@ import {
     CHECKPOINT_IDS,
     MODEL_IDS,
     MODEL_SPECS,
+    checkpointFiles,
     checkpointKey,
     resolveSpec,
+    weightFiles,
 } from "../models/specs";
 import { ModelId } from "../tensor/types";
 import type {
@@ -77,15 +79,32 @@ const
     /** True when one checkpoint weight file is present. */
     checkpointPresent = async (options: {
         store: ModelStore;
-        checkpoint: CheckpointId;
+        spec: ModelSpec;
     }): Promise<boolean> => {
         const
-            spec = MODEL_SPECS[options.checkpoint],
+            { store, spec } = options,
             key = checkpointKey({
                 checkpoint: spec.checkpoint,
                 file: spec.weightFile,
             });
-        return await options.store.exists(key);
+        return await store.exists(key);
+    },
+    /** True when any quality of one checkpoint is present. */
+    checkpointCached = async (options: {
+        store: ModelStore;
+        checkpoint: CheckpointId;
+    }): Promise<boolean> => {
+        const spec = MODEL_SPECS[options.checkpoint];
+        for (const file of weightFiles(spec)) {
+            const key = checkpointKey({
+                checkpoint: options.checkpoint,
+                file,
+            });
+            if (await options.store.exists(key)) {
+                return true;
+            }
+        }
+        return false;
     },
     /** True when any checkpoint of a model is present. */
     modelPresent = async (options: {
@@ -97,7 +116,7 @@ const
                 continue;
             }
             if (
-                await checkpointPresent({
+                await checkpointCached({
                     store: options.store,
                     checkpoint,
                 })
@@ -118,7 +137,7 @@ const
             if (spec.id !== options.model) {
                 continue;
             }
-            for (const file of spec.files) {
+            for (const file of checkpointFiles(spec)) {
                 total += await storedSize({
                     store: options.store,
                     key: checkpointKey({ checkpoint, file }),
@@ -180,6 +199,7 @@ const
             wanted = resolveSpec({
                 model: options.model,
                 language: options.language,
+                quality: options.quality,
             }),
             capped = Number.isFinite(options.allowedDiskSpaceMB)
                 ? options.allowedDiskSpaceMB
@@ -189,7 +209,7 @@ const
         if (
             await checkpointPresent({
                 store,
-                checkpoint: wanted.checkpoint,
+                spec: wanted,
             })
         ) {
             await writeUsage({ store, usage });

@@ -4,6 +4,8 @@ import type {
     MicrophoneCapture,
     MicrophoneCaptureHandle,
     ModelId,
+    Quality,
+    ThreadCount,
     TimestampMode,
 } from "../tensor/types";
 
@@ -84,6 +86,10 @@ export interface DictationOptions {
     model?: ModelId;
     /** Audio language, default English. */
     language?: Language;
+    /** Weight precision, default `Quality.High`. */
+    quality?: Quality;
+    /** Worker threads, default `ThreadCount.Four`. */
+    threads?: ThreadCount;
     /** Timestamp detail, default none. */
     timestamps?: TimestampMode;
     /** Live update cadence in milliseconds. */
@@ -132,6 +138,8 @@ export interface DictationStartRequest {
     id: number;
     model: ModelId;
     language: Language;
+    quality: Quality;
+    threads: ThreadCount;
     timestamps: TimestampMode;
     updateIntervalMs: number;
     partialIntervalMs: number;

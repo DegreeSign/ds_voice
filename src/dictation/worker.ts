@@ -67,6 +67,8 @@ const
         const active = transcribe({
             model: request.model,
             language: request.language,
+            quality: request.quality,
+            threads: request.threads,
             timestamps: request.timestamps,
             microphone: false,
             updateIntervalMs: request.updateIntervalMs,
@@ -98,6 +100,8 @@ const
         void preloadVoice({
             model: request.model,
             language: request.language,
+            quality: request.quality,
+            threads: request.threads,
             onProgress: sendProgress,
         }).then(
             () => {

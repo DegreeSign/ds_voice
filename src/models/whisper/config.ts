@@ -1,6 +1,7 @@
 // Configuration loading and normalization.
 import { checkpointKey } from "../specs";
 import type {
+    CheckpointStoreOptions,
     Constants,
     MelConfig,
     ModelConfig,
@@ -8,7 +9,6 @@ import type {
     RawGenerationConfig,
     RawModelConfig,
     RawPreprocessorConfig,
-    StoreModelOptions,
 } from "../../tensor/types";
 const
     /** Structural token ids verified against the checkpoint. */
@@ -38,7 +38,7 @@ const
         return JSON.parse(text) as T;
     },
     /** Load the three configuration files for a model. */
-    loadConfigs = async (options: StoreModelOptions): Promise<{
+    loadConfigs = async (options: CheckpointStoreOptions): Promise<{
         model: RawModelConfig;
         generation: RawGenerationConfig;
         preprocessor: RawPreprocessorConfig;

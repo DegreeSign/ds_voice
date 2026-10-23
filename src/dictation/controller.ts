@@ -1,7 +1,13 @@
 // Headless dictation controller.
 import { captureMicrophone } from "../audio/mic";
 import { hasMicrophone } from "../speech/env";
-import { Language, ModelId, TimestampMode } from "../tensor/types";
+import {
+    Language,
+    ModelId,
+    Quality,
+    ThreadCount,
+    TimestampMode,
+} from "../tensor/types";
 import {
     DictationErrorSource,
     DictationMessageType,
@@ -420,6 +426,8 @@ const
                     id: sessionId,
                     model: options.model ?? ModelId.WhisperBase,
                     language: options.language ?? Language.en,
+                    quality: options.quality ?? Quality.High,
+                    threads: options.threads ?? ThreadCount.Four,
                     timestamps: options.timestamps ?? TimestampMode.none,
                     updateIntervalMs: options.updateIntervalMs
                         ?? DEFAULT_UPDATE_INTERVAL_MS,

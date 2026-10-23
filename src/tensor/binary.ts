@@ -60,11 +60,13 @@ const
         bytes: Uint8Array;
         offset: number;
         count: number;
+        /** Optional destination, reused when provided. */
+        out?: Float32Array;
     }): Float32Array => {
         const
             { bytes, offset, count } = options,
             base = bytes.byteOffset + offset,
-            out = new Float32Array(count);
+            out = options.out ?? new Float32Array(count);
         if (base % 2 === 0) {
             const halves = new Uint16Array(bytes.buffer, base, count);
             for (let i = 0; i < count; i += 1) {

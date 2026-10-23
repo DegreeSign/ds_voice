@@ -1,6 +1,6 @@
 // Byte level BPE decoding.
 import { checkpointKey } from "../specs";
-import type { RawTokenizer, StoreModelOptions, Tokenizer } from "../../tensor/types";
+import type { RawTokenizer, CheckpointStoreOptions, Tokenizer } from "../../tensor/types";
 const
     /** Printable byte ranges shared by the GPT-2 table. */
     isPrintableByte = (b: number): boolean => {
@@ -27,7 +27,7 @@ const
         return table;
     },
     /** Load the tokenizer for a model. */
-    loadTokenizer = async (options: StoreModelOptions): Promise<Tokenizer> => {
+    loadTokenizer = async (options: CheckpointStoreOptions): Promise<Tokenizer> => {
         const text = await options.store.readText(
             checkpointKey({ checkpoint: options.checkpoint, file: "tokenizer.json" }),
         );

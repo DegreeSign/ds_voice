@@ -98,9 +98,11 @@ let kernelState: WasmKernel | null | undefined;
 const released = new WeakSet<Float32Array>();
 
 const
+    /** Default worker count. */
+    DEFAULT_THREADS = 4,
     /** Request the worker count used by the next pool. */
     setThreadCount = (threads?: number): void => {
-        const value = Math.max(1, Math.floor(threads ?? 1));
+        const value = Math.max(1, Math.floor(threads ?? DEFAULT_THREADS));
         if (value === threadLimit) {
             return;
         }

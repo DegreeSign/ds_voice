@@ -17,6 +17,7 @@ const
             await voice.ensureModel({
                 model: options.model,
                 language: options.language,
+                quality: options.quality,
                 allowedDiskSpaceMB: options.allowedDiskSpaceMB,
                 weightsBaseUrl: options.weightsBaseUrl,
                 weightCacheMB: options.weightCacheMB,

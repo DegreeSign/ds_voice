@@ -1,4 +1,4 @@
-import type { Constants, MelConfig, ModelConfig, RawGenerationConfig, RawModelConfig, RawPreprocessorConfig, StoreModelOptions } from "../../tensor/types";
+import type { CheckpointStoreOptions, Constants, MelConfig, ModelConfig, RawGenerationConfig, RawModelConfig, RawPreprocessorConfig } from "../../tensor/types";
 declare const 
 /** Structural token ids verified against the checkpoint. */
 TOKENS: {
@@ -14,7 +14,7 @@ TOKENS: {
     readonly timestampEnd: 51864;
 }, 
 /** Load the three configuration files for a model. */
-loadConfigs: (options: StoreModelOptions) => Promise<{
+loadConfigs: (options: CheckpointStoreOptions) => Promise<{
     model: RawModelConfig;
     generation: RawGenerationConfig;
     preprocessor: RawPreprocessorConfig;

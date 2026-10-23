@@ -1,7 +1,14 @@
 // Package entry, shared by Node and the browser.
 import { getVoice } from "./speech/voice";
 import { createApi } from "./speech/api";
-import { Language, ModelId, ProgressPhase, TimestampMode } from "./tensor/types";
+import {
+    Language,
+    ModelId,
+    ProgressPhase,
+    Quality,
+    ThreadCount,
+    TimestampMode,
+} from "./tensor/types";
 const {
     transcribe,
     preloadVoice,
@@ -17,6 +24,8 @@ export {
     Language,
     ModelId,
     ProgressPhase,
+    Quality,
+    ThreadCount,
     TimestampMode,
 };
 export type {

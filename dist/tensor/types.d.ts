@@ -138,6 +138,24 @@ export declare enum ModelId {
 }
 /** Concrete checkpoint behind a public model selection. */
 export type CheckpointId = ModelId | "whisper-base.en";
+/** Weight precision, highest quality first. */
+export declare enum Quality {
+    /** F16 weights, the default. */
+    High = "high",
+    /** Q8_0 weights. */
+    Medium = "medium",
+    /** Q4_K_M weights. */
+    Low = "low"
+}
+/** Worker count exposed to the developer. */
+export declare enum ThreadCount {
+    /** Two worker threads. */
+    Two = 2,
+    /** Four worker threads, the default. */
+    Four = 4,
+    /** Eight worker threads. */
+    Eight = 8
+}
 /** Architecture family behind a selection. */
 export declare enum ModelFamily {
     /** Autoregressive encoder and decoder. */
@@ -406,6 +424,13 @@ export interface ModelStore {
     /** Chunk access for resumable binary downloads. */
     parts?: ModelPartStore;
 }
+/** One weight file for a quality level. */
+export interface ModelWeight {
+    /** Weight file name. */
+    file: string;
+    /** Expected weight size in bytes, zero when unknown. */
+    bytes: number;
+}
 /** One fetchable model definition. */
 export interface ModelSpec {
     /** Selection this spec describes. */
@@ -418,10 +443,14 @@ export interface ModelSpec {
     textRepo?: string;
     /** Architecture family that loads the weights. */
     family: ModelFamily;
+    /** Selected weight precision. */
+    quality: Quality;
     /** Weight file name. */
     weightFile: string;
     /** Expected weight size in bytes, zero when unknown. */
     weightBytes: number;
+    /** Every weight variant of this checkpoint. */
+    weights: Record<Quality, ModelWeight>;
     /** Every file fetched for this model. */
     files: string[];
 }
@@ -457,12 +486,14 @@ export interface ModelOptionsBase {
     model?: ModelId;
     /** Language that chooses a checkpoint variant. */
     language?: Language;
+    /** Weight precision, defaults to `Quality.High`. */
+    quality?: Quality;
     /** Override for the weights host, defaults to Hugging Face. */
     weightsBaseUrl?: string;
     /** F32 weight cache cap in MB, defaults to the checkpoint. */
     weightCacheMB?: number;
-    /** Worker threads for the decode, defaults to 1. */
-    threads?: number;
+    /** Worker threads for the decode, defaults to `ThreadCount.Four`. */
+    threads?: ThreadCount;
     /** Called across every file as it loads. */
     onProgress?: ProgressHandler;
 }
@@ -507,6 +538,8 @@ export interface EnsureSpaceOptions {
     model: ModelId;
     /** Language that chooses a checkpoint variant. */
     language?: Language;
+    /** Weight precision that chooses a weight file. */
+    quality?: Quality;
     allowedDiskSpaceMB: number;
 }
 /** Options for touching a cached model. */
@@ -861,12 +894,17 @@ export interface LoadedSenseVoice {
 }
 /** Loaded model of any family. */
 export type Model = LoadedModel | LoadedSenseVoice;
-/** Options for loading a model from a store. */
-export interface StoreModelOptions {
+/** Options for reading the text files of a checkpoint. */
+export interface CheckpointStoreOptions {
     store: ModelStore;
     model: ModelId;
     /** Concrete checkpoint that holds the files. */
     checkpoint: CheckpointId;
+}
+/** Options for loading a model from a store. */
+export interface StoreModelOptions extends CheckpointStoreOptions {
+    /** Resolved checkpoint, including the selected weight file. */
+    spec: ModelSpec;
     /** F32 weight cache cap in MB, defaults to the checkpoint. */
     weightCacheMB?: number;
 }

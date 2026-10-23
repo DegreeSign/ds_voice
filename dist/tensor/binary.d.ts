@@ -11,6 +11,8 @@ readF16: (options: {
     bytes: Uint8Array;
     offset: number;
     count: number;
+    /** Optional destination, reused when provided. */
+    out?: Float32Array;
 }) => Float32Array, 
 /** Decode the safetensors header block. */
 parseSafetensorsJson: (bytes: Uint8Array) => {

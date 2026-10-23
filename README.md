@@ -197,6 +197,8 @@ dictation emits `onText("", true)` so the page can restore its base text.
 | `workerFallback` | Rebuild the worker from source when its script is blocked. Defaults to `true`. |
 | `model` | Speech model, `ModelId.WhisperBase` by default. |
 | `language` | Audio language, `Language.en` by default. |
+| `quality` | Weight precision, `Quality.High` by default. |
+| `threads` | Worker threads, `ThreadCount.Four` by default. |
 | `timestamps` | Timestamp detail, `TimestampMode.none` by default. |
 | `updateIntervalMs` | Live decode cadence, 1000 ms by default. |
 | `partialIntervalMs` | Partial text poll cadence, 200 ms by default. |
@@ -215,7 +217,7 @@ decode is running. Both return to `idle` after `onText(text, true)`.
 
 ## Public API
 
-The engine entry exports four functions and four enums.
+The engine entry exports four functions and six enums.
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
@@ -225,12 +227,14 @@ The engine entry exports four functions and four enums.
 | `isModelCached` | `isModelCached(options?)` | True when every file of the model is stored. |
 | `ModelId` | `SenseVoiceSmall`, `WhisperBase` | The supported model selection. |
 | `Language` | every language the bundled models support, plus `auto` | The supported language selection. |
+| `Quality` | `High`, `Medium`, `Low` | Weight precision, `High` (F16) by default. |
+| `ThreadCount` | `Two`, `Four`, `Eight` | Worker threads, `Four` by default. |
 | `TimestampMode` | `none`, `segment`, `word` | The timestamp detail selection. |
 | `ProgressPhase` | `download`, `verify`, `decode` | The phase reported by a load. |
 
 The `@degreesign/voice/dictation` entry exports `createDictation`,
-`isDictationSupported`, the dictation enums and the same `ModelId`, `Language`
-and `TimestampMode` enums.
+`isDictationSupported`, the dictation enums and the same `ModelId`, `Language`,
+`Quality`, `ThreadCount` and `TimestampMode` enums.
 
 `ModelId.WhisperBase` covers two checkpoints. An explicit `Language.en` loads
 the English only `openai/whisper-base.en`; every other language loads the
@@ -251,9 +255,9 @@ and one `meta.model`.
 | `error` | `Error \| null` | First asynchronous failure. |
 
 `transcribe` accepts `{ model?, pcm?, audioFilePath?, microphone?, language?,
-timestamps?, lowLatency?, itn?, allowedDiskSpaceMB?, updateIntervalMs?,
-onProgress? }`, which is `TranscribeBase` combined with the source and download
-fields.
+quality?, timestamps?, lowLatency?, itn?, allowedDiskSpaceMB?,
+updateIntervalMs?, threads?, onProgress? }`, which is `TranscribeBase`
+combined with the source and download fields.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -262,6 +266,7 @@ fields.
 | `audioFilePath` | `string \| Blob` | Browser URL or blob, or a Node filesystem path. |
 | `microphone` | `boolean` | Capture the microphone. Defaults to `true`; `false` accepts `push` input. |
 | `language` | `Language` | Language of the audio. `WhisperBase` loads English for `Language.en`; `Language.auto` detects it. |
+| `quality` | `Quality` | Weight precision. `Quality.High` (F16) by default, `Medium` (Q8_0) or `Low` (Q4_K_M). |
 | `timestamps` | `TimestampMode` | `TimestampMode.none`, `.segment` or `.word`. |
 | `lowLatency` | `boolean` | Decode at the true length, without 30 second padding. Defaults to `true`. |
 | `itn` | `boolean` | Request inverse text normalization output. |
@@ -269,7 +274,7 @@ fields.
 | `updateIntervalMs` | `number` | Live session update cadence. Defaults to `1000`. |
 | `weightsBaseUrl` | `string` | Weights host, defaults to `https://huggingface.co`. |
 | `weightCacheMB` | `number` | F32 weight cache cap in MB. Defaults to the whole checkpoint, capped at `1024`. |
-| `threads` | `number` | Worker threads for the decode. Defaults to `1`. |
+| `threads` | `ThreadCount` | Worker threads for the decode. Defaults to `ThreadCount.Four`. |
 | `onProgress` | `(progress) => void` | Download progress across every file of the model. |
 
 Timing in `msElapsed` and `meta.rtf` covers decode work only. Model download,
@@ -277,10 +282,11 @@ model load, audio decoding and waiting for audio sit outside the measurement.
 
 ### preloadVoice
 
-`preloadVoice` accepts `{ model?, language?, allowedDiskSpaceMB?, weightsBaseUrl?,
-weightCacheMB?, threads?, onProgress? }` and resolves once the model is in memory. Later
-`transcribe` calls reuse it. Pass `language: Language.en` to preload the English
-Whisper checkpoint; omit it to preload the multilingual one.
+`preloadVoice` accepts `{ model?, language?, quality?, allowedDiskSpaceMB?,
+weightsBaseUrl?, weightCacheMB?, threads?, onProgress? }` and resolves once the
+model is in memory. Later `transcribe` calls reuse it. Pass `language:
+Language.en` to preload the English Whisper checkpoint; omit it to preload the
+multilingual one.
 
 `loadModel` takes the same model selection and returns the loaded `Model`, while
 `isModelCached` reads the stored manifests only and never touches the network.
@@ -329,15 +335,15 @@ requests to enable resumable, parallel downloads.
 | `TextSnapshot` | `text`, `msElapsed` | One live reading, with decode time in milliseconds. |
 | `DownloadProgress` | `model`, `file`, `phase`, `loaded`, `total`, `ratio` | Load progress across every file. |
 | `TranscribeBase` | `pcm`, `language`, `timestamps`, `lowLatency`, `itn` | Decode parameters shared by every request. |
-| `ModelOptionsBase` | `model`, `language`, `weightsBaseUrl`, `weightCacheMB`, `threads`, `onProgress` | Model selection shared by every load. |
-| `DiskBudgetOptions` | `model`, `language`, `weightsBaseUrl`, `weightCacheMB`, `threads`, `onProgress`, `allowedDiskSpaceMB` | Model selection under a cache cap. |
+| `ModelOptionsBase` | `model`, `language`, `quality`, `weightsBaseUrl`, `weightCacheMB`, `threads`, `onProgress` | Model selection shared by every load. |
+| `DiskBudgetOptions` | `model`, `language`, `quality`, `weightsBaseUrl`, `weightCacheMB`, `threads`, `onProgress`, `allowedDiskSpaceMB` | Model selection under a cache cap. |
 
 ## Models
 
-| `ModelId` | Family | Languages | Weights |
-| --------- | ------ | --------- | ------- |
-| `SenseVoiceSmall` | sensevoice | zh, yue, en, ja, ko | about 146 MB, Q4_K_M |
-| `WhisperBase` | whisper | multilingual, English | about 59 MB, Q4_K_M |
+| `ModelId` | Family | Languages |
+| --------- | ------ | --------- |
+| `SenseVoiceSmall` | sensevoice | zh, yue, en, ja, ko |
+| `WhisperBase` | whisper | multilingual, English |
 
 Whisper base is the default. It is the autoregressive encoder and decoder with
 text, segment and word timestamps, DTW word alignment and long-form chunking.
@@ -348,6 +354,23 @@ every other language, including automatic detection. SenseVoice small is
 available with `model: ModelId.SenseVoiceSmall`. It is a non-autoregressive
 SAN-M encoder with a CTC head, a kaldi fbank plus LFR frontend and a
 SentencePiece vocabulary.
+
+### Weight quality
+
+Every checkpoint is published as F16, Q8_0 and Q4_K_M. `Quality` selects the
+weight file. `Quality.High` is the default.
+
+| `Quality` | Weights | Whisper base | Whisper base.en | SenseVoiceSmall |
+| --------- | ------- | ------------ | --------------- | --------------- |
+| `High` | F16 | 151 MB | 151 MB | 470 MB |
+| `Medium` | Q8_0 | 85 MB | 85 MB | 253 MB |
+| `Low` | Q4_K_M | 59 MB | 59 MB | 146 MB |
+
+All three formats are dequantized to F32 on first access before the kernels
+run, so the transcription kernels are the same at every quality. Quality
+changes the download size and the first-window dequantization cost, not the
+steady-state decode path. `Quality.Low` has the smallest download and
+`Quality.High` keeps the most precision.
 
 ## Audio input
 
@@ -381,7 +404,9 @@ seconds. Only a live session uses wall clock updates.
 the package estimates what the model needs. When the current cache plus the new
 model would exceed the cap, other models are deleted least recently used first.
 A model already in the cache is never pruned. When one model alone exceeds the
-cap it is still loaded, and every other model is removed to make room.
+cap it is still loaded, and every other model is removed to make room. The
+default F16 checkpoint is 151 MB for Whisper base and 470 MB for SenseVoice
+small; `Quality.Low` reduces those to 59 MB and 146 MB.
 
 ## Storage
 
@@ -405,22 +430,24 @@ when it does not match `weightBytes`.
 
 ## Performance
 
-The graph runs on the CPU with WebAssembly SIMD kernels. Set `threads` above
-`1` to split large matrix multiplications across worker threads. Node.js can
-use worker threads directly; browsers need cross origin isolation, served with
-`Cross-Origin-Opener-Policy: same-origin` and
-`Cross-Origin-Embedder-Policy: require-corp`, and the session should run inside a
-worker because the split wait blocks its thread. Without isolation, or with
-`threads: 1`, the engine uses the single thread path. On a 3.1 GHz eight thread
-i7, an 11 second English clip decodes in about 3 seconds on Whisper Base with
-`threads: 8` and the default weight cache.
+The graph runs on the CPU with WebAssembly SIMD kernels. `threads` defaults to
+`ThreadCount.Four`; use `ThreadCount.Two` or `ThreadCount.Eight` to change the
+worker count. Node.js can use worker threads directly; browsers need cross
+origin isolation, served with `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp`, and the session should run inside
+a worker because the split wait blocks its thread. Without isolation, or with a
+single worker, the engine uses the single thread path. On a 3.1 GHz eight thread
+i7, an 11 second English clip decodes in about 6 seconds on Whisper Base F16
+with `threads: 4`, close to the Q4_K_M time on the same machine.
 
-The Q4_K_M weights are dequantized into a byte capped F32 cache on first
+The default F16 weights are dequantized into a byte capped F32 cache on first
 access. By default that cache holds the whole checkpoint once, so a window
 never pays for the same tensor twice; pass `weightCacheMB` to keep the resident
-set smaller at the cost of re-dequantization. The arena behind the kernels
-reuses freed regions, so a long running session keeps a steady footprint
-instead of growing with every window.
+set smaller at the cost of re-dequantization. Q8_0 and Q4_K_M checkpoints use
+the same cache and the same F32 kernels, so the steady-state transcription path
+does not change with quality. The arena behind the kernels reuses freed
+regions, so a long running session keeps a steady footprint instead of growing
+with every window.
 
 Updates arrive as fast as inference allows. Inference blocks the calling
 thread, so in the browser run the session inside a worker for a responsive UI.
@@ -463,12 +490,12 @@ cache in IndexedDB through `@degreesign/storage`.
 
 ## Licensing
 
-Whisper weights and tokenizer data are Apache-2.0, and the Q4_K_M GGUF
-conversions keep that license. The SenseVoice Q4_K_M weights are distributed
-under the FunASR Model Open Source License Agreement v1.1. The bundled MP3
-decoder is `minimp3`, which is CC0, together with the Apache-2.0
-`minimp3-wasm` bindings. See `THIRD_PARTIES.md`. The runtime code in this
-folder is original work, licensed under MIT. See `LICENSE`.
+Whisper weights and tokenizer data are Apache-2.0, and the F16, Q8_0 and
+Q4_K_M GGUF conversions keep that license. The SenseVoice F16, Q8_0 and Q4_K_M
+weights are distributed under the FunASR Model Open Source License Agreement
+v1.1. The bundled MP3 decoder is `minimp3`, which is CC0, together with the
+Apache-2.0 `minimp3-wasm` bindings. See `THIRD_PARTIES.md`. The runtime code in
+this folder is original work, licensed under MIT. See `LICENSE`.
 
 ## Keywords
 

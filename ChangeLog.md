@@ -3,6 +3,15 @@
 All notable changes to `@degreesign/voice` are recorded here. This project
 follows semantic versioning.
 
+## 0.7.0
+
+### Added
+
+- `Quality` enum with `High`, `Medium` and `Low` weight precision, defaulting
+  to `High` F16.
+- `ThreadCount` enum with `Two`, `Four` and `Eight` worker counts, defaulting
+  to `Four`.
+
 ## 0.6.0
 
 ### Added

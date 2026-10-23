@@ -20,7 +20,7 @@ import { assertWhisperShape, parseSafetensors } from "../../formats/safetensors"
 import { parseGguf } from "../../formats/gguf";
 import { createWhisperWeights } from "./weights";
 import { kernelThreads } from "../../tensor/wasm";
-import { MODEL_SPECS, checkpointKey } from "../specs";
+import { checkpointKey } from "../specs";
 import { Language, ModelFamily, TimestampMode } from "../../tensor/types";
 import type {
     CapturePair,
@@ -44,7 +44,7 @@ const
                 checkpoint: options.checkpoint,
             },
             { model, generation, preprocessor } = await loadConfigs(source),
-            spec = MODEL_SPECS[options.checkpoint],
+            { spec } = options,
             candidates = spec.weightFile === "model.safetensors"
                 ? [spec.weightFile]
                 : [spec.weightFile, "model.safetensors"];

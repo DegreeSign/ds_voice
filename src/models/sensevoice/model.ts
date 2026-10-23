@@ -7,7 +7,7 @@ import { computeSenseVoiceFeatures } from "./fbank";
 import { encodeSenseVoice, senseVoiceLogits } from "./encoder";
 import { createSenseVoiceVocabulary } from "./tokenizer";
 import { createGgufWeights } from "./weights";
-import { MODEL_SPECS, checkpointKey } from "../specs";
+import { checkpointKey } from "../specs";
 import { kernelThreads } from "../../tensor/wasm";
 import { Language, ModelFamily } from "../../tensor/types";
 import type {
@@ -27,7 +27,7 @@ const
         const bytes = await options.store.readBytes(
             checkpointKey({
                 checkpoint: options.checkpoint,
-                file: MODEL_SPECS[options.checkpoint].weightFile,
+                file: options.spec.weightFile,
             }),
         );
         if (bytes === null) {

@@ -5,7 +5,7 @@ import {
     DictationPermission,
     DictationState,
 } from "./types";
-import { Language, ModelId, TimestampMode } from "../tensor/types";
+import { Language, ModelId, Quality, ThreadCount, TimestampMode } from "../tensor/types";
 
 export {
     createDictation,
@@ -15,6 +15,8 @@ export {
     DictationErrorSource,
     Language,
     ModelId,
+    Quality,
+    ThreadCount,
     TimestampMode,
 };
 export type {

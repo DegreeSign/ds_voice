@@ -3,6 +3,7 @@ import {
     CHECKPOINT_IDS,
     HF_BASE,
     MODEL_SPECS,
+    checkpointFiles,
     checkpointKey,
     resolveSpec,
 } from "../models/specs";
@@ -355,6 +356,7 @@ const
             spec = resolveSpec({
                 model: options.model,
                 language: options.language,
+                quality: options.quality,
             }),
             base = weightsBase(options.weightsBaseUrl),
             total = await checkpointBytes({ store: options.store, spec });
@@ -420,7 +422,7 @@ const
             if (spec.id !== options.model) {
                 continue;
             }
-            for (const file of spec.files) {
+            for (const file of checkpointFiles(spec)) {
                 await options.store.remove(checkpointKey({ checkpoint, file }));
             }
         }

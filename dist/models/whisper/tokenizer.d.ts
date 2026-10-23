@@ -1,5 +1,5 @@
-import type { StoreModelOptions, Tokenizer } from "../../tensor/types";
+import type { CheckpointStoreOptions, Tokenizer } from "../../tensor/types";
 declare const 
 /** Load the tokenizer for a model. */
-loadTokenizer: (options: StoreModelOptions) => Promise<Tokenizer>;
+loadTokenizer: (options: CheckpointStoreOptions) => Promise<Tokenizer>;
 export { loadTokenizer };
