@@ -711,16 +711,22 @@ export interface TranscribeBase {
 export interface TranscribeOptions extends TranscribeBase, DiskBudgetOptions {
     /** Browser URL or blob, or a Node filesystem path. */
     audioFilePath?: string | Blob;
-    /** Update cadence for microphone sessions, defaults to 1000 ms. */
+    /** Capture the microphone, defaults to true. */
+    microphone?: boolean;
+    /** Update cadence for live sessions, defaults to 1000 ms. */
     updateIntervalMs?: number;
 }
 /** Live handle over one streaming transcription. */
 export interface TranscribeSession {
     /** Latest full text, cheap and synchronous. */
     fullText(): TextSnapshot;
+    /** Append 16 kHz mono samples, manual source only. */
+    push(pcm: Float32Array): void;
     /** Stop capture, flush the tail and resolve the transcript. */
     stop(): Promise<Transcript>;
-    /** Resolves when a finite source ends or stop is called. */
+    /** Drop pending audio and resolve without a final decode. */
+    cancel(): void;
+    /** Resolves when a finite source ends, stop or cancel is called. */
     done: Promise<Transcript>;
     /** First asynchronous failure, or null. */
     error: Error | null;

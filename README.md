@@ -104,6 +104,20 @@ A browser session with no `pcm` and no `audioFilePath` asks for microphone
 access and keeps recording until `stop`. A Node session with no audio source
 rejects through `done` because there is no microphone.
 
+Pass `microphone: false` to capture audio elsewhere and feed it to the session
+with `push`. This keeps capture and its UI on the page while the decode runs in
+a worker, where `getUserMedia` and `AudioContext` are not available.
+
+```ts
+const session = transcribe({ model: ModelId.WhisperBase, microphone: false });
+
+session.push(pcm); // 16 kHz mono Float32Array, as often as audio arrives
+setInterval(() => {
+  document.body.textContent = session.fullText().text;
+}, 200);
+await session.stop();
+```
+
 ## Public API
 
 The package exports four functions and four enums.
@@ -131,25 +145,29 @@ and one `meta.model`.
 | Member | Signature | Description |
 | ------ | --------- | ----------- |
 | `fullText` | `() => { text, msElapsed }` | Latest text and decode time, cheap and synchronous. |
+| `push` | `(pcm) => void` | Append 16 kHz mono samples to a session with `microphone: false`. |
 | `stop` | `() => Promise<Transcript>` | Stop capture, flush the tail, resolve. |
-| `done` | `Promise<Transcript>` | Resolves when a finite source ends or `stop` is called. |
+| `cancel` | `() => void` | Drop pending audio and resolve without a final decode. |
+| `done` | `Promise<Transcript>` | Resolves when a finite source ends, `stop` or `cancel` is called. |
 | `error` | `Error \| null` | First asynchronous failure. |
 
-`transcribe` accepts `{ model?, pcm?, audioFilePath?, language?, timestamps?,
-lowLatency?, itn?, allowedDiskSpaceMB?, updateIntervalMs?, onProgress? }`, which
-is `TranscribeBase` combined with the source and download fields.
+`transcribe` accepts `{ model?, pcm?, audioFilePath?, microphone?, language?,
+timestamps?, lowLatency?, itn?, allowedDiskSpaceMB?, updateIntervalMs?,
+onProgress? }`, which is `TranscribeBase` combined with the source and download
+fields.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `model` | `ModelId` | Model to use. Defaults to `ModelId.WhisperBase`. |
 | `pcm` | `Float32Array` | 16 kHz mono samples. Highest priority source. |
 | `audioFilePath` | `string \| Blob` | Browser URL or blob, or a Node filesystem path. |
+| `microphone` | `boolean` | Capture the microphone. Defaults to `true`; `false` accepts `push` input. |
 | `language` | `Language` | Language of the audio. `WhisperBase` loads English for `Language.en`; `Language.auto` detects it. |
 | `timestamps` | `TimestampMode` | `TimestampMode.none`, `.segment` or `.word`. |
 | `lowLatency` | `boolean` | Decode at the true length, without 30 second padding. Defaults to `true`. |
 | `itn` | `boolean` | Request inverse text normalization output. |
 | `allowedDiskSpaceMB` | `number` | Cache cap in MB. Defaults to `512`. |
-| `updateIntervalMs` | `number` | Microphone update cadence. Defaults to `1000`. |
+| `updateIntervalMs` | `number` | Live session update cadence. Defaults to `1000`. |
 | `weightsBaseUrl` | `string` | Weights host, defaults to `https://huggingface.co`. |
 | `weightCacheMB` | `number` | F32 weight cache cap in MB. Defaults to the whole checkpoint, capped at `1024`. |
 | `threads` | `number` | Worker threads for the decode. Defaults to `1`. |
@@ -238,7 +256,8 @@ The first source that is present wins:
 
 1. `pcm`, already 16 kHz mono.
 2. `audioFilePath`, decoded and resampled to 16 kHz.
-3. The browser microphone, recorded until `stop`.
+3. A manual feed with `microphone: false`, appended through `push`.
+4. The browser microphone, recorded until `stop`.
 
 In Node a path is read from the filesystem and decoded by magic bytes. WAV,
 FLAC and MP3 are supported by bundled decoders. In the browser a string is
@@ -247,15 +266,15 @@ support. A local browser file must be wrapped in an object URL first.
 
 The microphone uses `getUserMedia`, an `AudioWorklet` capture with a
 `ScriptProcessor` fallback, and needs a secure context plus a user gesture.
-Inference and capture are sequential: capture stops before the CPU heavy decode
-begins.
+Decoding blocks the calling thread, so a browser page that must stay responsive
+captures audio itself and runs the session in a worker with `microphone: false`.
 
 Streaming keeps two regions of text: committed text that will not change, and a
 partial tail that is refreshed. Pending audio is committed at silence
 boundaries, or forced at 30 seconds. Committed audio is dropped, so memory
 stays bounded while the text keeps growing. For finite inputs the chunks are
 drained as fast as inference allows, so a 60 second file does not wait 60
-seconds. Only a microphone session uses wall clock updates.
+seconds. Only a live session uses wall clock updates.
 
 ## Disk budget
 

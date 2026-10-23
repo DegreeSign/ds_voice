@@ -3414,6 +3414,79 @@ const definitions: Array<{
             },
         },
         {
+            name: "session accepts pushed audio",
+            run: async () => {
+                const
+                    model = graphModel(),
+                    fake = {
+                        ensureModel: async (): Promise<Model> => model,
+                        transcribe: (): Transcript => ({
+                            text: "push live",
+                            language: Language.en,
+                            duration: 1,
+                            segments: [{
+                                start: 0,
+                                end: 1,
+                                text: "push live",
+                                words: [],
+                            }],
+                            meta: { model: "sensevoice-small", rtf: 0, threads: 1 },
+                        }),
+                    } as unknown as Voice,
+                    session = createSession({
+                        options: {
+                            microphone: false,
+                            updateIntervalMs: 100,
+                        },
+                        voice: fake,
+                    });
+                session.push(new Float32Array(16000).fill(0.2));
+                const deadline = Date.now() + 10000;
+                while (
+                    session.fullText().text.length === 0 &&
+                    session.error === null &&
+                    Date.now() < deadline
+                ) {
+                    await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+                const transcript = await session.stop();
+                assertEqual(transcript.text, "push live", "push text");
+                assertEqual(session.error, null, "push error");
+            },
+        },
+        {
+            name: "session cancels pushed audio",
+            run: async () => {
+                const
+                    model = graphModel(),
+                    fake = {
+                        ensureModel: async (): Promise<Model> => model,
+                        transcribe: (): Transcript => ({
+                            text: "push live",
+                            language: Language.en,
+                            duration: 1,
+                            segments: [{
+                                start: 0,
+                                end: 1,
+                                text: "push live",
+                                words: [],
+                            }],
+                            meta: { model: "sensevoice-small", rtf: 0, threads: 1 },
+                        }),
+                    } as unknown as Voice,
+                    session = createSession({
+                        options: { microphone: false },
+                        voice: fake,
+                    });
+                session.push(new Float32Array(16000).fill(0.2));
+                session.cancel();
+                const transcript = await session.done;
+                assertEqual(transcript.text, "", "cancel text");
+                assertEqual(session.fullText().text, "", "cancel live text");
+                assertEqual(session.error, null, "cancel error");
+            },
+        },
+        {
             name: "store/usage budget and pruning",
             run: async () => {
                 const

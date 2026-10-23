@@ -68,6 +68,7 @@ const
             finished = false,
             stopping = false,
             sourceEnded = false,
+            pendingDirty = false,
             failure: Error | null = null,
             model: Model | null = null,
             modelPromise: Promise<Model> | null = null,
@@ -200,6 +201,9 @@ const
                 if (finished || busy || !model) {
                     return;
                 }
+                if (!flush && !sourceEnded && !pendingDirty) {
+                    return;
+                }
                 if (pending.length === 0) {
                     if (sourceEnded) {
                         finish();
@@ -210,6 +214,7 @@ const
                 if (!flush && !sourceEnded && pending.length < minSamples) {
                     return;
                 }
+                pendingDirty = false;
                 busy = true;
                 let transcript: Transcript;
                 const decodeStarted = performance.now();
@@ -259,6 +264,7 @@ const
                 merged.set(pending, 0);
                 merged.set(samples, pending.length);
                 pending = merged;
+                pendingDirty = true;
                 totalSamples += samples.length;
             },
             /** Drain a finite buffer in one pass. */
@@ -307,10 +313,29 @@ const
                 }
                 finish();
                 return await done;
+            },
+            /** Drop pending audio and resolve immediately. */
+            cancel = (): void => {
+                if (finished) {
+                    return;
+                }
+                stopping = true;
+                clearTimers();
+                if (sourceStop) {
+                    const release = sourceStop;
+                    sourceStop = null;
+                    void release();
+                }
+                pending = new Float32Array(0);
+                pendingDirty = false;
+                partial = "";
+                finish();
             };
         const session: TranscribeSession = {
             fullText,
+            push: append,
             stop,
+            cancel,
             get done(): Promise<Transcript> {
                 return done;
             },
@@ -333,7 +358,7 @@ const
             })().catch((reason: unknown) => {
                 fail(toError(reason));
             });
-        } else if (hasMicrophone()) {
+        } else if (options.microphone === false || hasMicrophone()) {
             timer = setInterval(() => {
                 void pump();
             }, interval);
@@ -355,10 +380,12 @@ const
                     fail(toError(reason));
                 },
             );
-            sourceStop = captureMicrophone({
-                onChunk: append,
-                onError: fail,
-            });
+            if (options.microphone !== false) {
+                sourceStop = captureMicrophone({
+                    onChunk: append,
+                    onError: fail,
+                });
+            }
         } else {
             void Promise.resolve().then(() => {
                 fail(new Error("no audio source available"));
