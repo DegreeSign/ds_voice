@@ -152,6 +152,22 @@ import {
 import { TINY_FLAC, TINY_MP3 } from "./fixtures";
 import { writeWav16 } from "./wav";
 import * as entry from "../../src/index";
+import {
+    createDictation,
+    DictationErrorSource,
+    DictationState,
+    isDictationSupported,
+} from "../../src/dictation";
+import { serveDictation } from "../../src/dictation/worker";
+import {
+    DictationMessageType,
+    DictationRequestType,
+} from "../../src/dictation/types";
+import type {
+    DictationCapture,
+    DictationMessage,
+    DictationRequest,
+} from "../../src/dictation/types";
 import type {
     Constants,
     DownloadProgress,
@@ -160,6 +176,8 @@ import type {
     LoadedModel,
     LoadedSenseVoice,
     MelConfig,
+    MicrophoneCapture,
+    MicrophoneCaptureHandle,
     Model,
     ModelConfig,
     ModelPartStore,
@@ -1069,6 +1087,78 @@ const
         dataOffset: 0,
         buffer: new Uint8Array(0),
     });
+
+/** One fake dictation worker driven by the test. */
+class DictationWorkerStub {
+    onmessage: ((event: MessageEvent<DictationMessage>) => void) | null = null;
+    onerror: ((event: ErrorEvent) => void) | null = null;
+    messages: DictationRequest[] = [];
+    handler: ((request: DictationRequest) => void) | undefined;
+
+    postMessage(request: DictationRequest): void {
+        this.messages.push(request);
+        this.handler?.(request);
+    }
+
+    terminate(): void {
+        return;
+    }
+
+    reply(message: DictationMessage): void {
+        this.onmessage?.({
+            data: message,
+        } as MessageEvent<DictationMessage>);
+    }
+}
+
+/** One fake microphone capture. */
+interface FakeCapture {
+    options: MicrophoneCapture;
+    handle: MicrophoneCaptureHandle;
+    counts: {
+        paused: number;
+        resumed: number;
+        stopped: number;
+    };
+    create: DictationCapture;
+}
+
+const
+    /** Worker shared by the dictation tests. */
+    dictationWorker = new DictationWorkerStub(),
+    dictationWorkerInstance = dictationWorker as unknown as Worker,
+    /** Build one fake capture with call counters. */
+    fakeCapture = (): FakeCapture => {
+        const
+            counts = { paused: 0, resumed: 0, stopped: 0 },
+            options: MicrophoneCapture = {
+                onChunk: () => undefined,
+                onError: () => undefined,
+            },
+            handle: MicrophoneCaptureHandle = {
+                ready: Promise.resolve(),
+                stop: async (): Promise<void> => {
+                    counts.stopped += 1;
+                },
+                pause: async (): Promise<void> => {
+                    counts.paused += 1;
+                },
+                resume: async (): Promise<void> => {
+                    counts.resumed += 1;
+                },
+            };
+        return {
+            options,
+            handle,
+            counts,
+            create: (input) => {
+                options.onChunk = input.onChunk;
+                options.onError = input.onError;
+                options.onFrequency = input.onFrequency;
+                return handle;
+            },
+        };
+    };
 
 /** Every test, each deferred behind a function. */
 const definitions: Array<{
@@ -3330,14 +3420,15 @@ const definitions: Array<{
                         },
                     },
                 });
-                const stop = captureMicrophone({
+                const capture = captureMicrophone({
                     onChunk: () => undefined,
                     onError: (error) => {
                         captured = error;
                     },
                 });
                 await new Promise((resolve) => setTimeout(resolve, 0));
-                await stop();
+                await capture.ready.catch(() => undefined);
+                await capture.stop();
                 Object.defineProperty(navigator, "mediaDevices", {
                     configurable: true,
                     value: original,
@@ -3353,7 +3444,7 @@ const definitions: Array<{
                     chunks = 0,
                     samples = 0,
                     captured: Error | null = null;
-                const stop = captureMicrophone({
+                const capture = captureMicrophone({
                     onChunk: (data) => {
                         chunks += 1;
                         samples += data.length;
@@ -3362,13 +3453,14 @@ const definitions: Array<{
                         captured = error;
                     },
                 });
+                void capture.ready.catch(() => undefined);
                 const deadline = Date.now() + 10000;
                 while (
                     samples <= 1000 && captured === null && Date.now() < deadline
                 ) {
                     await new Promise((resolve) => setTimeout(resolve, 100));
                 }
-                await stop();
+                await capture.stop();
                 const failure = captured as Error | null;
                 assertEqual(failure, null, `mic error ${failure?.message ?? ""}`);
                 assert(chunks > 0, "no microphone chunks");
@@ -3667,6 +3759,268 @@ const definitions: Array<{
                 assert(transcript.meta.rtf < 0.3, "download counted in rtf");
                 assert(live.msElapsed > 20, "live decode time missing");
                 assert(live.msElapsed < 250, "live download counted");
+            },
+        },
+        {
+            name: "dictation lifecycle",
+            run: async () => {
+                const
+                    states: DictationState[] = [],
+                    texts: Array<[string, boolean]> = [],
+                    capture = fakeCapture();
+                let session = 0;
+                dictationWorker.handler = (request) => {
+                    if (request.type === DictationRequestType.start) {
+                        session = request.id;
+                        dictationWorker.reply({
+                            type: DictationMessageType.progress,
+                            ratio: 0.5,
+                        });
+                        dictationWorker.reply({
+                            type: DictationMessageType.loaded,
+                        });
+                        return;
+                    }
+                    if (request.type === DictationRequestType.stop) {
+                        dictationWorker.reply({
+                            type: DictationMessageType.done,
+                            id: request.id,
+                            text: ` hello `,
+                        });
+                    }
+                };
+                const dictation = createDictation({
+                    workerFactory: () => dictationWorkerInstance,
+                    capture: capture.create,
+                    language: Language.en,
+                    onState: (state) => states.push(state),
+                    onText: (text, final) => texts.push([text, final]),
+                });
+                assertEqual(
+                    typeof isDictationSupported(),
+                    `boolean`,
+                    `support flag`,
+                );
+                await dictation.start();
+                assertEqual(
+                    dictation.state(),
+                    DictationState.recording,
+                    `recording`,
+                );
+                assert(
+                    states.includes(DictationState.requesting),
+                    `requesting state`,
+                );
+                capture.options.onChunk(new Float32Array(2000));
+                dictationWorker.reply({
+                    type: DictationMessageType.partial,
+                    id: session,
+                    text: `hel`,
+                });
+                assertEqual(texts[0]?.[0], `hel`, `partial text`);
+                await dictation.finish();
+                assertEqual(
+                    dictation.state(),
+                    DictationState.idle,
+                    `idle after finish`,
+                );
+                assertEqual(
+                    texts[texts.length - 1]?.[0],
+                    `hello`,
+                    `final text`,
+                );
+                assertEqual(
+                    texts[texts.length - 1]?.[1],
+                    true,
+                    `final flag`,
+                );
+                const audio = dictationWorker.messages.filter(
+                    (request) =>
+                        request.type === DictationRequestType.audio,
+                );
+                assertEqual(audio.length, 1, `audio posted`);
+                dictation.destroy();
+            },
+        },
+        {
+            name: "dictation pause, resume and cancel",
+            run: async () => {
+                const
+                    texts: Array<[string, boolean]> = [],
+                    capture = fakeCapture();
+                dictationWorker.handler = (request) => {
+                    if (request.type === DictationRequestType.start) {
+                        dictationWorker.reply({
+                            type: DictationMessageType.loaded,
+                        });
+                    }
+                };
+                const dictation = createDictation({
+                    workerFactory: () => dictationWorkerInstance,
+                    capture: capture.create,
+                    onText: (text, final) => texts.push([text, final]),
+                });
+                await dictation.start();
+                dictation.pause();
+                assertEqual(
+                    dictation.state(),
+                    DictationState.paused,
+                    `paused`,
+                );
+                assertEqual(capture.counts.paused, 1, `capture paused`);
+                dictation.resume();
+                assertEqual(
+                    dictation.state(),
+                    DictationState.recording,
+                    `resumed`,
+                );
+                assertEqual(capture.counts.resumed, 1, `capture resumed`);
+                dictation.cancel();
+                assertEqual(
+                    dictation.state(),
+                    DictationState.idle,
+                    `cancelled`,
+                );
+                assertEqual(capture.counts.stopped, 1, `capture stopped`);
+                assertEqual(
+                    texts[texts.length - 1]?.[0],
+                    ``,
+                    `empty final`,
+                );
+                assertEqual(
+                    texts[texts.length - 1]?.[1],
+                    true,
+                    `final flag`,
+                );
+                dictation.destroy();
+            },
+        },
+        {
+            name: "dictation one active controller",
+            run: async () => {
+                const
+                    textA: Array<[string, boolean]> = [],
+                    captureA = fakeCapture(),
+                    captureB = fakeCapture();
+                dictationWorker.handler = (request) => {
+                    if (request.type === DictationRequestType.start) {
+                        dictationWorker.reply({
+                            type: DictationMessageType.loaded,
+                        });
+                    }
+                };
+                const
+                    first = createDictation({
+                        workerFactory: () => dictationWorkerInstance,
+                        capture: captureA.create,
+                        onText: (text, final) => textA.push([text, final]),
+                    }),
+                    second = createDictation({
+                        workerFactory: () => dictationWorkerInstance,
+                        capture: captureB.create,
+                    });
+                await first.start();
+                await second.start();
+                assertEqual(
+                    first.state(),
+                    DictationState.idle,
+                    `first idle`,
+                );
+                assertEqual(
+                    second.state(),
+                    DictationState.recording,
+                    `second recording`,
+                );
+                assertEqual(
+                    textA[textA.length - 1]?.[0],
+                    ``,
+                    `first cleared`,
+                );
+                second.cancel();
+                first.destroy();
+                second.destroy();
+            },
+        },
+        {
+            name: "dictation classifies worker errors",
+            run: async () => {
+                const errors: DictationErrorSource[] = [];
+                dictationWorker.handler = (request) => {
+                    if (request.type === DictationRequestType.start) {
+                        dictationWorker.reply({
+                            type: DictationMessageType.error,
+                            id: request.id,
+                            message: `model unavailable`,
+                        });
+                    }
+                };
+                const dictation = createDictation({
+                    workerFactory: () => dictationWorkerInstance,
+                    capture: fakeCapture().create,
+                    onError: (error) => errors.push(error.source),
+                });
+                await dictation.start();
+                assertEqual(
+                    errors[0],
+                    DictationErrorSource.model,
+                    `model error`,
+                );
+                assertEqual(
+                    dictation.state(),
+                    DictationState.idle,
+                    `idle after error`,
+                );
+                dictation.destroy();
+            },
+        },
+        {
+            name: "dictation worker dispatches requests",
+            run: async () => {
+                const
+                    previous = window.onmessage,
+                    replies: DictationMessage[] = [],
+                    listener = (event: MessageEvent<DictationMessage>) => {
+                        const data = event.data;
+                        if (
+                            data
+                            && typeof data === `object`
+                            && `type` in data
+                        ) {
+                            replies.push(data);
+                        }
+                    };
+                window.addEventListener(`message`, listener);
+                try {
+                    serveDictation();
+                    const handler = window.onmessage as
+                        ((event: MessageEvent<DictationRequest>) => void) | null;
+                    assert(handler !== null, `worker handler missing`);
+                    handler?.({
+                        data: { type: DictationRequestType.stop, id: 42 },
+                    } as MessageEvent<DictationRequest>);
+                    handler?.({
+                        data: { type: DictationRequestType.cancel, id: 42 },
+                    } as MessageEvent<DictationRequest>);
+                    handler?.({
+                        data: {
+                            type: DictationRequestType.audio,
+                            id: 42,
+                            pcm: new Float32Array(4),
+                        },
+                    } as MessageEvent<DictationRequest>);
+                    await new Promise((resolve) => setTimeout(resolve, 50));
+                } finally {
+                    window.removeEventListener(`message`, listener);
+                    window.onmessage = previous;
+                }
+                assertEqual(replies.length, 1, `one worker reply`);
+                assertEqual(
+                    replies[0]?.type,
+                    DictationMessageType.done,
+                    `done reply`,
+                );
+                assertEqual(replies[0]?.id, 42, `reply id`);
+                assertEqual(replies[0]?.text, ``, `empty reply`);
             },
         },
     ];

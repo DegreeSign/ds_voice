@@ -1,5 +1,5 @@
-import type { MicrophoneCapture } from "../tensor/types";
+import type { MicrophoneCapture, MicrophoneCaptureHandle } from "../tensor/types";
 declare const 
-/** Start microphone capture, returning a stop handle. */
-captureMicrophone: (options: MicrophoneCapture) => (() => Promise<void>);
+/** Start microphone capture, returning a handle. */
+captureMicrophone: (options: MicrophoneCapture) => MicrophoneCaptureHandle;
 export { captureMicrophone };

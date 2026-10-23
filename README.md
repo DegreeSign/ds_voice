@@ -14,6 +14,7 @@ and no runtime dependencies.
 - [Why](#why)
 - [Install](#install)
 - [Quick start](#quick-start)
+- [Dictation controller](#dictation-controller)
 - [Public API](#public-api)
 - [Models](#models)
 - [Audio input](#audio-input)
@@ -118,9 +119,103 @@ setInterval(() => {
 await session.stop();
 ```
 
+## Dictation controller
+
+`@degreesign/voice/dictation` adds a headless controller for live microphone
+dictation. It owns the worker, capture, pause state, model progress and partial
+text. The page keeps its own markup, styles and copy.
+
+Copy the prebuilt worker next to the page, or serve it from any same origin
+path:
+
+```bash
+cp node_modules/@degreesign/voice/dist/browser/dictation.worker.js public/dictation.worker.js
+```
+
+```ts
+import {
+  createDictation,
+  DictationState,
+  Language,
+} from "@degreesign/voice/dictation";
+
+const dictation = createDictation({
+  workerUrl: "/dictation.worker.js",
+  language: Language.en,
+  onState: (state, { modelReady, ratio }) => {
+    status.textContent = state === DictationState.recording && modelReady
+      ? "Listening"
+      : `${state} ${Math.round(ratio * 100)}%`;
+  },
+  onText: (text, final) => {
+    input.value = text;
+    if (final) {
+      input.readOnly = false;
+    }
+  },
+  onFrequency: (levels) => {
+    wave.style.opacity = String(levels[2] / 255);
+  },
+  onError: ({ source, message }) => {
+    console.error(source, message);
+  },
+});
+
+micButton.onclick = () => {
+  input.readOnly = true;
+  void dictation.start();
+};
+pauseButton.onclick = () => dictation.togglePause();
+doneButton.onclick = () => void dictation.finish();
+cancelButton.onclick = () => dictation.cancel();
+```
+
+One controller belongs to one input or component. All controllers on a page
+share one worker, and starting one cancels the active one. A cancelled
+dictation emits `onText("", true)` so the page can restore its base text.
+
+### Controller methods
+
+| Member | Description |
+| ------ | ----------- |
+| `start()` | Ask for the microphone and start recording. Resolves once capture runs. |
+| `pause()` / `resume()` | Suspend or resume capture without dropping audio. |
+| `togglePause()` | Pause or resume, whichever applies. |
+| `finish()` | Flush the tail and resolve after the final text arrives. |
+| `cancel()` | Drop the session and emit an empty final text. |
+| `reset()` | Alias for `cancel`. |
+| `active()` | True while the controller owns the UI. |
+| `state()` | Current `DictationState`. |
+| `destroy()` | Cancel and detach the controller. |
+
+### Options
+
+| Field | Description |
+| ----- | ----------- |
+| `workerUrl` | Prebuilt `dictation.worker.js` URL. Required unless `workerFactory` is set. |
+| `workerFactory` | Build the worker yourself, for bundlers or tests. |
+| `workerFallback` | Rebuild the worker from source when its script is blocked. Defaults to `true`. |
+| `model` | Speech model, `ModelId.WhisperBase` by default. |
+| `language` | Audio language, `Language.en` by default. |
+| `timestamps` | Timestamp detail, `TimestampMode.none` by default. |
+| `updateIntervalMs` | Live decode cadence, 1000 ms by default. |
+| `partialIntervalMs` | Partial text poll cadence, 200 ms by default. |
+| `onState` | Receives the state and `{ ratio, modelReady, permission }`. |
+| `onText` | Receives live text and the final text. |
+| `onFrequency` | Receives a reused `Uint8Array` of analyser bins once per animation frame. |
+| `onError` | Receives `{ source, message }`, where source is `microphone`, `model` or `worker`. |
+| `capture` | Advanced capture override. |
+
+### States
+
+`idle` is ready, `requesting` waits for permission, `recording` captures audio
+and `paused` keeps the session open. `loading` means finish was pressed while
+the model was still loading. `working` means finish was pressed and the final
+decode is running. Both return to `idle` after `onText(text, true)`.
+
 ## Public API
 
-The package exports four functions and four enums.
+The engine entry exports four functions and four enums.
 
 | Export | Signature | Description |
 | ------ | --------- | ----------- |
@@ -132,6 +227,10 @@ The package exports four functions and four enums.
 | `Language` | every language the bundled models support, plus `auto` | The supported language selection. |
 | `TimestampMode` | `none`, `segment`, `word` | The timestamp detail selection. |
 | `ProgressPhase` | `download`, `verify`, `decode` | The phase reported by a load. |
+
+The `@degreesign/voice/dictation` entry exports `createDictation`,
+`isDictationSupported`, the dictation enums and the same `ModelId`, `Language`
+and `TimestampMode` enums.
 
 `ModelId.WhisperBase` covers two checkpoints. An explicit `Language.en` loads
 the English only `openai/whisper-base.en`; every other language loads the

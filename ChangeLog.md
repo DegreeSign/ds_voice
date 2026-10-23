@@ -3,6 +3,20 @@
 All notable changes to `@degreesign/voice` are recorded here. This project
 follows semantic versioning.
 
+## 0.6.0
+
+### Added
+
+- `@degreesign/voice/dictation`: `createDictation(options)` for headless
+  microphone dictation with pause, cancel, partial text, model progress and
+  worker fallback.
+- `isDictationSupported()` on `@degreesign/voice/dictation`.
+- `DictationState`, `DictationPermission` and `DictationErrorSource` enums.
+- `ModelId`, `Language` and `TimestampMode` re-exported from the dictation
+  entry.
+- `dist/browser/dictation.worker.js`: prebuilt worker asset used by the
+  dictation controller.
+
 ## 0.2.0
 
 ### Added

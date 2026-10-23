@@ -1,10 +1,29 @@
 {
     "name": "@degreesign/voice",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "Offline speech recognition and transcription for the browser and Node.js with the SenseVoice and Whisper models",
     "main": "dist/node/degreesign.node.min.js",
     "browser": "dist/browser/degreesign.min.js",
     "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "browser": "./dist/browser/degreesign.min.js",
+            "default": "./dist/node/degreesign.node.min.js"
+        },
+        "./dictation": {
+            "types": "./dist/dictation/index.d.ts",
+            "default": "./dist/browser/dictation.min.js"
+        },
+        "./dictation/worker": "./dist/browser/dictation.worker.js",
+        "./dist/*": "./dist/*",
+        "./package.json": "./package.json"
+    },
+    "typesVersions": {
+        "*": {
+            "dictation": ["dist/dictation/index.d.ts"]
+        }
+    },
     "scripts": {
         "build": "tsc --emitDeclarationOnly && webpack",
         "typecheck": "tsc --noEmit"

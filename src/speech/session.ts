@@ -381,10 +381,12 @@ const
                 },
             );
             if (options.microphone !== false) {
-                sourceStop = captureMicrophone({
+                const capture = captureMicrophone({
                     onChunk: append,
                     onError: fail,
                 });
+                sourceStop = () => capture.stop();
+                void capture.ready.catch(() => undefined);
             }
         } else {
             void Promise.resolve().then(() => {

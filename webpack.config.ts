@@ -77,6 +77,31 @@ const
             globalObject: "this",
         },
     }),
+    /** Browser bundle with only the dictation controller. */
+    dictationConfig: webpack.Configuration = {
+        ...browserConfig,
+        entry: "./src/dictation/index.ts",
+        output: {
+            path: path.resolve(__dirname, "dist/browser"),
+            filename: "dictation.min.js",
+            library: "dsVoiceDictation",
+            libraryTarget: "umd",
+            globalObject: "this",
+        },
+    },
+    /** Self contained dictation worker bundle. */
+    dictationWorkerConfig: webpack.Configuration = {
+        ...browserConfig,
+        entry: "./src/dictation/workerEntry.ts",
+        optimization: {
+            ...browserConfig.optimization,
+            sideEffects: true,
+        },
+        output: {
+            path: path.resolve(__dirname, "dist/browser"),
+            filename: "dictation.worker.js",
+        },
+    },
     // Node webpack configuration
     nodeConfig: webpack.Configuration = {
         ...commonConfig,
@@ -115,4 +140,6 @@ module.exports = [
         library: "dsVoiceWhisper",
     }),
     nodeConfig,
+    dictationConfig,
+    dictationWorkerConfig,
 ];

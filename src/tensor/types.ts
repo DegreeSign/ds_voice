@@ -609,12 +609,26 @@ export interface Minimp3Exports {
     decoder_decode(duration: number): void;
 }
 
-/** One microphone capture handle. */
+/** One microphone capture request. */
 export interface MicrophoneCapture {
-    /** Frames at the context sample rate. */
+    /** Frames resampled to 16 kHz mono. */
     onChunk: (samples: Float32Array) => void;
     /** First capture failure. */
     onError: (error: Error) => void;
+    /** Reused analyser buffer for a waveform. */
+    onFrequency?: (data: Uint8Array) => void;
+}
+
+/** Handle over one running microphone capture. */
+export interface MicrophoneCaptureHandle {
+    /** Resolves when capture is running. */
+    ready: Promise<void>;
+    /** Release the microphone and audio graph. */
+    stop(): Promise<void>;
+    /** Suspend capture without releasing it. */
+    pause(): Promise<void>;
+    /** Resume a paused capture. */
+    resume(): Promise<void>;
 }
 
 /** Options for a streaming transcription session. */
