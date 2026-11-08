@@ -1247,6 +1247,32 @@ const
     /** Reset the fixture server counters. */
     resetTtsStats = async (): Promise<void> => {
         await fetch("/stats?reset=1");
+    },
+    /** Run one test under a storage estimate. */
+    withStorageEstimate = async (options: {
+        quota: number;
+        usage: number;
+        run: () => Promise<void>;
+    }): Promise<void> => {
+        const original = Object.getOwnPropertyDescriptor(navigator, "storage");
+        Object.defineProperty(navigator, "storage", {
+            configurable: true,
+            value: {
+                estimate: async () => ({
+                    quota: options.quota,
+                    usage: options.usage,
+                }),
+            },
+        });
+        try {
+            await options.run();
+        } finally {
+            if (original) {
+                Object.defineProperty(navigator, "storage", original);
+            } else {
+                Reflect.deleteProperty(navigator, "storage");
+            }
+        }
     };
 
 const definitions: Array<{
@@ -4743,6 +4769,68 @@ const
                     true,
                     "warm file",
                 );
+            },
+        },
+        {
+            name: "tts/cached voice survives full quota",
+            run: async () => {
+                await resetTtsStats();
+                assertEqual(
+                    await isVoiceCached(VoiceId.Female1),
+                    true,
+                    "cached first",
+                );
+                await withStorageEstimate({
+                    quota: 100,
+                    usage: 100,
+                    run: async () => {
+                        await loadVoice({
+                            voice: VoiceId.Female1,
+                            weightsBaseUrl: TTS_FIXTURES,
+                        });
+                    },
+                });
+                assertEqual((await ttsStats()).requests, 0, "no refetch");
+                assertEqual(
+                    await isVoiceCached(VoiceId.Female1),
+                    true,
+                    "still cached",
+                );
+            },
+        },
+        {
+            name: "tts/quota clears other voices",
+            run: async () => {
+                await removeVoice(VoiceId.Female1);
+                await withStorageEstimate({
+                    quota: 100,
+                    usage: 100,
+                    run: async () => {
+                        await loadVoice({
+                            voice: VoiceId.Female1,
+                            weightsBaseUrl: TTS_FIXTURES,
+                        });
+                    },
+                });
+                assertEqual(
+                    await isVoiceCached(VoiceId.Female1),
+                    true,
+                    "selected cached",
+                );
+                assertEqual(
+                    await isVoiceCached(VoiceId.Female2),
+                    false,
+                    "largest cleared",
+                );
+                assertEqual(
+                    await isVoiceCached(VoiceId.Male),
+                    true,
+                    "smallest kept",
+                );
+                await loadVoice({
+                    voice: VoiceId.Female2,
+                    weightsBaseUrl: TTS_FIXTURES,
+                });
             },
         },
     ],

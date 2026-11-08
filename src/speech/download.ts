@@ -15,13 +15,6 @@ const
     RETRY_ATTEMPTS = 3,
     /** First retry delay in milliseconds. */
     RETRY_DELAY_MS = 200,
-    /** Browser quota error fragments. */
-    QUOTA_PARTS = [
-        "quota",
-        "no space",
-        "disk full",
-        "ns_error_dom_quota_reached",
-    ],
     /** Store key of one voice file. */
     fileKey = (options: { voice: VoiceId; file: string }): string => {
         return `tts/${options.voice}/${options.file}`;
@@ -59,26 +52,25 @@ const
             // Persistence is best effort.
         }
     },
-    /** Whether the origin reached its storage quota. */
-    isOverQuota = async (): Promise<boolean> => {
+    /** Origin storage estimate, undefined when unknown. */
+    storageEstimate = async (): Promise<{
+        quota: number;
+        usage: number;
+    } | undefined> => {
         try {
             if (typeof navigator === "undefined") {
-                return false;
+                return undefined;
             }
             const estimate = navigator.storage?.estimate;
             if (!estimate) {
-                return false;
+                return undefined;
             }
             const { quota = 0, usage = 0 } = await estimate();
-            return quota > 0 && usage >= quota;
+            return quota > 0 ? { quota, usage } : undefined;
         } catch {
-            return false;
+            // Estimate is best effort.
+            return undefined;
         }
-    },
-    /** Whether a failed write ran out of storage. */
-    isQuotaError = (error: Error): boolean => {
-        const text = `${error.name} ${error.message}`.toLowerCase();
-        return QUOTA_PARTS.some((part) => text.includes(part));
     },
     /** Download one file into the store. */
     fetchFile = async (options: {
@@ -130,25 +122,64 @@ const
         }
         throw last;
     },
-    /** True when every file of a voice is stored. */
-    isVoiceCached = async (voice: VoiceId): Promise<boolean> => {
-        const store = await getStore();
+    /** Files of a voice that are not stored. */
+    missingFiles = async (voice: VoiceId): Promise<VoiceFile[]> => {
+        const
+            store = await getStore(),
+            missing: VoiceFile[] = [];
         for (const file of getVoiceSpec(voice).files) {
             if (file.bundled) {
                 continue;
             }
             const key = fileKey({ voice, file: file.file });
             if (!(await store.exists(key))) {
-                return false;
+                missing.push(file);
             }
         }
-        return true;
+        return missing;
     },
+    /** Bytes of every file of a voice. */
+    voiceBytes = (voice: VoiceId): number => {
+        return getVoiceSpec(voice).files.reduce(
+            (sum, file) => sum + file.bytes,
+            0,
+        );
+    },
+    /** True when every file of a voice is stored. */
+    isVoiceCached = async (voice: VoiceId): Promise<boolean> =>
+        (await missingFiles(voice)).length === 0,
     /** Remove stored files without touching a load. */
     clearVoice = async (voice: VoiceId): Promise<void> => {
         const store = await getStore();
         for (const file of getVoiceSpec(voice).files) {
             await store.remove(fileKey({ voice, file: file.file }));
+        }
+    },
+    /** Drop other voices until space fits. */
+    clearOtherVoices = async (options: {
+        voice: VoiceId;
+        needed: number;
+    }): Promise<void> => {
+        const estimate = await storageEstimate();
+        if (!estimate) {
+            return;
+        }
+        let free = estimate.quota - estimate.usage;
+        if (free >= options.needed) {
+            return;
+        }
+        const others = listVoices()
+            .filter((spec) => spec.id !== options.voice)
+            .sort((left, right) => voiceBytes(right.id) - voiceBytes(left.id));
+        for (const spec of others) {
+            if (free >= options.needed) {
+                break;
+            }
+            if (!(await isVoiceCached(spec.id))) {
+                continue;
+            }
+            await clearVoice(spec.id);
+            free += voiceBytes(spec.id);
         }
     },
     /** Remove every stored file of a voice. */
@@ -161,12 +192,6 @@ const
             activeAbort = undefined;
         }
         await clearVoice(voice);
-    },
-    /** Remove every stored voice file. */
-    clearEveryVoice = async (): Promise<void> => {
-        for (const voice of listVoices()) {
-            await clearVoice(voice.id);
-        }
     };
 
 let
@@ -210,52 +235,44 @@ const loadVoice = async (options: LoadVoiceOptions): Promise<VoiceSpec> => {
         },
         /** One cancellable load of the selected voice. */
         task = (async (): Promise<VoiceSpec> => {
-            await persistStorage();
-            if (await isOverQuota()) {
-                await clearEveryVoice();
-            }
             if (token !== activeToken) {
                 throw new Error(`voice load cancelled`);
             }
-            report("", 0, ProgressPhase.download);
-            if (await isVoiceCached(options.voice)) {
-                report("", 1, ProgressPhase.verify);
+            const missing = await missingFiles(options.voice);
+            if (missing.length === 0) {
                 return spec;
             }
-            try {
-                for (const file of spec.files) {
-                    if (token !== activeToken) {
-                        throw new Error(`voice load cancelled`);
-                    }
-                    const before = loaded;
-                    await fetchFile({
-                        voice: options.voice,
-                        base,
-                        file,
-                        signal: controller.signal,
-                        onBytes: (bytes) => {
-                            loaded = before + bytes;
-                            report(
-                                file.file,
-                                total > 0 ? loaded / total : 0,
-                                ProgressPhase.download,
-                            );
-                        },
-                    });
-                    loaded = before + file.bytes;
-                    report(
-                        file.file,
-                        total > 0 ? loaded / total : 0,
-                        ProgressPhase.verify,
-                    );
+            await persistStorage();
+            await clearOtherVoices({
+                voice: options.voice,
+                needed: missing.reduce((sum, file) => sum + file.bytes, 0),
+            });
+            report("", 0, ProgressPhase.download);
+            for (const file of spec.files) {
+                if (token !== activeToken) {
+                    throw new Error(`voice load cancelled`);
                 }
-            } catch (error) {
-                if (isQuotaError(
-                    error instanceof Error ? error : new Error(String(error)),
-                )) {
-                    await clearEveryVoice();
-                }
-                throw error;
+                const before = loaded;
+                await fetchFile({
+                    voice: options.voice,
+                    base,
+                    file,
+                    signal: controller.signal,
+                    onBytes: (bytes) => {
+                        loaded = before + bytes;
+                        report(
+                            file.file,
+                            total > 0 ? loaded / total : 0,
+                            ProgressPhase.download,
+                        );
+                    },
+                });
+                loaded = before + file.bytes;
+                report(
+                    file.file,
+                    total > 0 ? loaded / total : 0,
+                    ProgressPhase.verify,
+                );
             }
             report("", 1, ProgressPhase.verify);
             return spec;
