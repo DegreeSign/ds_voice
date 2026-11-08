@@ -1,6 +1,6 @@
 // Package entry, shared by Node and the browser.
-import { getVoice } from "./speech/core/voice";
-import { createApi } from "./speech/core/api";
+import { getVoice } from "./transcription/core/voice";
+import { createApi } from "./transcription/core/api";
 import {
     Language,
     ModelId,
@@ -28,6 +28,30 @@ export {
     ThreadCount,
     TimestampMode,
 };
+export {
+    listVoices,
+    getVoiceSpec,
+    getVoiceSample,
+    loadVoice,
+    prepareVoice,
+    synthesize,
+    isVoiceCached,
+    removeVoice,
+    PREVIEW,
+    PREVIEW_RATE,
+    VoiceFamily,
+    VoiceGender,
+    VoiceId,
+} from "./speech";
+export type {
+    LoadVoiceOptions,
+    SynthesizeVoiceOptions,
+    VoiceAudio,
+    VoiceDownloadProgress,
+    VoiceFile,
+    VoiceSample,
+    VoiceSpec,
+} from "./speech";
 export type {
     DiskBudgetOptions,
     DownloadProgress,

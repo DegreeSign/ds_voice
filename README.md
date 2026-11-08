@@ -17,11 +17,13 @@ and no runtime dependencies.
 - [Case study: DoListy](#case-study-dolisty)
 - [Dictation controller](#dictation-controller)
 - [Public API](#public-api)
+- [Voice library](#voice-library)
 - [Models](#models)
 - [Audio input](#audio-input)
 - [Disk budget](#disk-budget)
 - [Storage](#storage)
 - [Performance](#performance)
+- [Architecture](#architecture)
 - [FAQ](#faq)
 - [Licensing](#licensing)
 
@@ -304,6 +306,65 @@ The `@degreesign/voice/dictation` entry exports `createDictation`,
 `isDictationSupported`, the dictation enums and the same `ModelId`, `Language`,
 `Quality`, `ThreadCount` and `TimestampMode` enums.
 
+## Voice library
+
+The main `@degreesign/voice` bundle files the voices as `female_1`, `female_2`
+and `male_1`. Every entry names one Apache-2.0 model and carries a 16 kHz preview
+clip inside the bundle, so a voice picker can play a sample before any weight
+is downloaded. `loadVoice` fetches the files of the selected voice on first use
+and stores the result in the same platform store as the recognition weights.
+Switching voice keeps the old files cached for a later switch back.
+
+| Voice | Model | Speaker | Output |
+| ----- | ----- | ------- | ------ |
+| `female_1` | `cstr/kokoro-82m-GGUF` | `af_heart` | 24 kHz |
+| `female_2` | `ekwek/Soprano-1.1-80M` | `default` | 32 kHz |
+| `male_1` | `hexgrad/Kokoro-82M` | `am_michael` | 24 kHz |
+
+`male_1` reuses the Kokoro backbone and ships its 0.5 MB `am_michael` voice pack
+inside the bundle, so only the shared backbone is downloaded on first use.
+
+```ts
+import {
+    VoiceId,
+    getVoiceSpec,
+    getVoiceSample,
+    isVoiceCached,
+    listVoices,
+    loadVoice,
+    synthesize,
+} from "@degreesign/voice";
+
+const voices = listVoices();
+const clip = getVoiceSample(VoiceId.Female1);
+const spec = getVoiceSpec(VoiceId.Female1);
+if (!(await isVoiceCached(VoiceId.Female1))) {
+    await loadVoice({ voice: VoiceId.Female1, onProgress: console.log });
+}
+
+const audio = await synthesize({
+    voice: VoiceId.Female2,
+    text: "Hello from the second female voice.",
+});
+// audio.pcm is mono Float32 at audio.sampleRate.
+```
+
+`getVoiceSample` returns the WAV bytes and the clip rate, so a browser can play
+them from a blob URL and Node can write them to disk. `loadVoice` accepts
+`weightsBaseUrl` for a mirror and reports `VoiceDownloadProgress` across every
+file. `removeVoice` drops the cached files. Every downloaded voice stays in
+the store, so switching back needs no download.
+
+`synthesize` loads the selected voice on first use and returns `VoiceAudio`.
+The Kokoro engine covers `female_1` and `male_1`, the Soprano engine covers
+`female_2`. The parsed weights stay resident until another voice replaces them,
+so repeated calls for one voice skip the store reads and tensor parsing.
+
+`prepareVoice({ voice })` performs the same download and parse without
+synthesizing. Call it when a voice is picked or speech is enabled, then
+`synthesize` reuses the resident weights for every sentence. Only one voice
+stays in memory: a different `voice` replaces the resident model.
+
 `ModelId.WhisperBase` covers two checkpoints. An explicit `Language.en` loads
 the English only `openai/whisper-base.en`; every other language loads the
 multilingual `openai/whisper-base`. Both share one enum value, one usage record
@@ -529,6 +590,14 @@ A session commits its pending audio at a pause, at 12 seconds without one, or
 when stopped, and decodes the whole pending buffer on every update. Raise
 `updateIntervalMs` when the pending window is long and the decode cannot keep
 up with the update cadence.
+
+## Architecture
+
+The committed map at [docs/architecture.html](docs/architecture.html) shows the
+package as bands of files and functions: the recognition entry, the voice
+library, the model families, the tensor runtime, the platform stores, the audio
+input and the build. It is one offline HTML file with no external request. Open
+it directly in a browser and use the panel to trace a call back to the entry.
 
 ## FAQ
 

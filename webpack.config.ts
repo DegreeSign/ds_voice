@@ -80,7 +80,7 @@ const
     /** Browser bundle with only the dictation controller. */
     dictationConfig: webpack.Configuration = {
         ...browserConfig,
-        entry: "./src/speech/dictation/index.ts",
+        entry: "./src/transcription/dictation/index.ts",
         output: {
             path: path.resolve(__dirname, "dist/browser"),
             filename: "dictation.min.js",
@@ -92,7 +92,7 @@ const
     /** Self contained dictation worker bundle. */
     dictationWorkerConfig: webpack.Configuration = {
         ...browserConfig,
-        entry: "./src/speech/worker/workerEntry.ts",
+        entry: "./src/transcription/worker/workerEntry.ts",
         optimization: {
             ...browserConfig.optimization,
             sideEffects: true,
@@ -126,16 +126,15 @@ const
             __filename: false,
         },
     };
-
 module.exports = [
     browserConfig,
     familyConfig({
-        entry: "./src/speech/entries/sensevoice.ts",
+        entry: "./src/transcription/entries/sensevoice.ts",
         filename: "sensevoice.min.js",
         library: "dsVoiceSenseVoice",
     }),
     familyConfig({
-        entry: "./src/speech/entries/whisper.ts",
+        entry: "./src/transcription/entries/whisper.ts",
         filename: "whisper.min.js",
         library: "dsVoiceWhisper",
     }),

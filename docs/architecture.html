@@ -1,0 +1,1390 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>code structure</title>
+    <style>
+        :root {
+            --paper: #f4efe5;
+            --paper-2: #ece4d5;
+            --card: #fffdf7;
+            --ink: #2c271f;
+            --muted: #6f6657;
+            --faint: #9a9080;
+            --line: #d7cbb7;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; height: 100%; }
+        body {
+            font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: var(--paper);
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        #app { display: flex; flex-direction: column; height: 100vh; }
+        #bar {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex-wrap: wrap;
+            padding: 9px 16px 8px;
+            border-bottom: 1px solid var(--line);
+            background: #f7f2e8;
+            z-index: 5;
+        }
+        .brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+        .brand h1 {
+            margin: 0;
+            font: 600 17px/1.1 "Iowan Old Style", Palatino, Georgia, serif;
+            letter-spacing: 0.01em;
+        }
+        .brand .meta {
+            margin: 0;
+            font: 10.5px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: var(--faint);
+            white-space: nowrap;
+        }
+        .bands { display: flex; gap: 4px; flex-wrap: wrap; }
+        .bands button {
+            font-size: 10.5px;
+            padding: 3px 7px;
+            border-left-width: 3px;
+            border-left-color: var(--band);
+        }
+        .tools { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+        #search {
+            width: 158px;
+            font: 11.5px ui-monospace, monospace;
+            padding: 4px 8px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: var(--card);
+            color: var(--ink);
+        }
+        #search:focus { outline: 2px solid #b9a887; outline-offset: 0; }
+        button {
+            font: 11px/1 ui-sans-serif, system-ui, sans-serif;
+            padding: 5px 9px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: #fbf7ef;
+            color: #453d31;
+            cursor: pointer;
+        }
+        button:hover { background: #fffdf7; border-color: #bfae92; }
+        button.on { background: #2c271f; color: #f7f2e8; border-color: #2c271f; }
+        #zoom {
+            font: 10.5px ui-monospace, monospace;
+            color: var(--muted);
+            min-width: 36px;
+            text-align: center;
+        }
+        #stage { position: relative; flex: 1; display: flex; min-height: 0; }
+        #viewport {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+            cursor: grab;
+            background-image:
+                linear-gradient(#e6ddcd 1px, transparent 1px),
+                linear-gradient(90deg, #e6ddcd 1px, transparent 1px);
+            background-size: 48px 48px;
+            background-position: -1px -1px;
+            touch-action: none;
+        }
+        #viewport.drag { cursor: grabbing; }
+        #canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+        #edges { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+        .band {
+            position: absolute;
+            left: 0;
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            padding-top: 5px;
+            border-top: 1px solid var(--line);
+            pointer-events: none;
+        }
+        .band b {
+            font: 650 10.5px/1 ui-sans-serif, system-ui, sans-serif;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: #4c4234;
+        }
+        .band span { font-size: 10px; color: var(--faint); }
+        .wash {
+            position: absolute;
+            left: 6px;
+            border-radius: 6px;
+            background: var(--band);
+            opacity: 0.075;
+            pointer-events: none;
+        }
+        .file { position: absolute; }
+        .file-head {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            height: 18px;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .file-head b {
+            font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: var(--band);
+        }
+        .file-head i {
+            font-style: normal;
+            font: 9px/1 ui-monospace, monospace;
+            color: #ada291;
+        }
+        .file-cols { display: flex; gap: 12px; align-items: flex-start; }
+        .col { width: 208px; display: flex; flex-direction: column; gap: 6px; }
+        .node {
+            position: relative;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--band);
+            border-radius: 3px;
+            padding: 5px 7px 6px;
+            cursor: pointer;
+            transition: opacity 0.16s ease, box-shadow 0.16s ease;
+        }
+        .node .lbl {
+            font-weight: 650;
+            font-size: 11px;
+            line-height: 1.3;
+            letter-spacing: 0.005em;
+            padding-right: 22px;
+            word-break: break-word;
+        }
+        .node .sig {
+            margin-top: 1px;
+            font: 9.5px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: #5d5446;
+            word-break: break-word;
+        }
+        .node .ln {
+            position: absolute;
+            top: 4px;
+            right: 5px;
+            font: 8.5px/1 ui-monospace, monospace;
+            color: #b3a895;
+        }
+        .node .no {
+            display: none;
+            position: absolute;
+            left: -8px;
+            top: -8px;
+            width: 17px;
+            height: 17px;
+            border-radius: 50%;
+            background: #2c271f;
+            color: #f7f2e8;
+            font: 600 9.5px/17px ui-sans-serif, sans-serif;
+            text-align: center;
+        }
+        .node.lit {
+            box-shadow: 0 0 0 2px var(--band), 0 6px 16px rgba(70, 52, 22, 0.14);
+            z-index: 3;
+        }
+        .node.dim { background: #f6f1e7; border-color: #e7dfd0; border-left-color: #ded4c2; }
+        .node.dim > * { opacity: 0.3; }
+        .node.sel {
+            background: #fff;
+            box-shadow: 0 0 0 2px #2c271f, 0 8px 22px rgba(70, 52, 22, 0.2);
+            z-index: 4;
+        }
+        .node.step { box-shadow: 0 0 0 2px #2c271f; }
+        .node.step .no { display: block; }
+        .node.hit { box-shadow: 0 0 0 2px #c08a4a; }
+        .node:focus-visible { outline: 2px solid #c08a4a; outline-offset: 1px; }
+        .edge { fill: none; stroke-width: 1.15; opacity: 0.24; transition: opacity 0.16s ease; }
+        .edge.lit { opacity: 0.95; stroke-width: 1.8; }
+        .edge.dim { opacity: 0.035; }
+        .k-build { stroke: #6f9464; }
+        .k-call { stroke: #5579a4; }
+        .k-event { stroke: #c08a4a; stroke-dasharray: 5 3; }
+        .k-store { stroke: #9878ad; stroke-dasharray: 2 3; }
+        .k-type { stroke: #a49b8c; stroke-width: 1; opacity: 0.1; }
+        .k-inner { stroke: #b9ab95; stroke-dasharray: 1 3; opacity: 0.1; }
+        .k-type.lit, .k-inner.lit { opacity: 0.95; }
+        #hint {
+            position: absolute;
+            left: 14px;
+            bottom: 12px;
+            font: 10.5px ui-monospace, monospace;
+            color: #8c8272;
+            background: rgba(247, 242, 232, 0.86);
+            border: 1px solid var(--line);
+            border-radius: 3px;
+            padding: 4px 8px;
+            pointer-events: none;
+        }
+        #panel {
+            flex: 0 0 322px;
+            width: 322px;
+            border-left: 1px solid var(--line);
+            background: var(--paper-2);
+            overflow: auto;
+            padding: 13px 15px 40px;
+        }
+        #panel h2 {
+            margin: 15px 0 7px;
+            font: 650 10px/1 ui-sans-serif, sans-serif;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #7b7060;
+        }
+        #panel h2:first-child { margin-top: 2px; }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            padding: 10px 11px;
+        }
+        .card .path {
+            font: 9.5px/1.4 ui-monospace, monospace;
+            color: var(--faint);
+            word-break: break-all;
+        }
+        .card .name {
+            margin: 2px 0 0;
+            font: 650 14px/1.25 ui-sans-serif, sans-serif;
+        }
+        .card .sig {
+            margin-top: 3px;
+            font: 10px/1.4 ui-monospace, monospace;
+            color: #4f4739;
+            word-break: break-word;
+        }
+        .card .note { margin-top: 6px; font-size: 11.5px; color: #5c5345; }
+        .card .note code { font: 10px ui-monospace, monospace; color: #6e3354; }
+        .rel { margin-top: 10px; }
+        .rel b {
+            display: block;
+            font: 600 9px/1 ui-sans-serif, sans-serif;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: var(--faint);
+            margin-bottom: 4px;
+        }
+        .rel button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            font: 10.5px/1.35 ui-monospace, monospace;
+            padding: 2px 0;
+            border: 0;
+            background: none;
+            color: #3f5f86;
+        }
+        .rel button:hover { color: #1c3550; text-decoration: underline; }
+        .rel button span { color: #a89c88; }
+        .bandlist button {
+            padding: 5px 0 5px 8px;
+            color: inherit;
+            border-left: 3px solid var(--band);
+        }
+        .bandlist button b {
+            display: block;
+            font: 600 11px/1.3 ui-sans-serif, system-ui, sans-serif;
+            color: #2c271f;
+        }
+        .bandlist button span {
+            display: block;
+            font: 10px/1.35 ui-sans-serif, system-ui, sans-serif;
+            color: #8c8272;
+        }
+        .route {
+            font: 9.5px/1.55 ui-monospace, monospace;
+            color: #756a58;
+            word-break: break-word;
+        }
+        .route b { color: #2c271f; }
+        .empty { font-size: 11.5px; color: #7d7363; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; font-size: 11px; }
+        .stats div { display: flex; justify-content: space-between; gap: 6px; }
+        .stats span { color: var(--faint); }
+        .stats b { font: 600 11px ui-monospace, monospace; }
+        .legend { display: grid; gap: 3px; font-size: 10.5px; color: #635a4b; }
+        .legend i {
+            display: inline-block;
+            width: 22px;
+            height: 0;
+            border-top: 2px solid;
+            margin-right: 7px;
+            vertical-align: middle;
+        }
+        .legend .k-build { border-top-color: #6f9464; }
+        .legend .k-call { border-top-color: #5579a4; }
+        .legend .k-event { border-top-color: #c08a4a; border-top-style: dashed; }
+        .legend .k-store { border-top-color: #9878ad; border-top-style: dotted; }
+        .legend .k-type { border-top-color: #a49b8c; }
+        .legend .k-inner { border-top-color: #b9ab95; border-top-style: dotted; }
+        .steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+        .steps li {
+            counter-increment: step;
+            position: relative;
+            padding: 3px 0 5px 22px;
+            font-size: 11px;
+            color: #5c5345;
+            border-bottom: 1px solid #e2d9ca;
+        }
+        .steps li:last-child { border-bottom: 0; }
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 4px;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #2c271f;
+            color: #f7f2e8;
+            font: 600 9px/15px ui-sans-serif, sans-serif;
+            text-align: center;
+        }
+        .steps li b { display: block; color: #2c271f; font: 600 10.5px ui-monospace, monospace; }
+        #state-box svg { width: 100%; height: auto; display: block; }
+        .state-title { font: 600 9.5px ui-monospace, monospace; fill: #7b7060; }
+        .state-box { font: 9.5px ui-monospace, monospace; fill: #3c352b; }
+        .state-arrow { stroke: #9b8f7c; stroke-width: 1; fill: none; }
+        @media (max-width: 900px) {
+            #panel {
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 300px;
+                flex-basis: 300px;
+                box-shadow: -10px 0 30px rgba(60, 45, 20, 0.12);
+            }
+            #hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <header id="bar">
+        <div class="brand">
+            <h1>code structure</h1>
+            <p class="meta" id="meta">dependency map</p>
+        </div>
+        <div class="bands" id="bands"></div>
+        <div class="tools">
+            <input id="search" type="search" placeholder="find a function" autocomplete="off"
+                spellcheck="false">
+            <button id="flow" title="Number the primary flow">flow</button>
+            <button id="fit" title="Fit the whole map">fit</button>
+            <button id="minus" title="Zoom out">-</button>
+            <span id="zoom">100%</span>
+            <button id="plus" title="Zoom in">+</button>
+        </div>
+    </header>
+    <div id="stage">
+        <div id="viewport">
+            <div id="canvas">
+                <svg id="edges" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+            <div id="hint">drag to pan · wheel to zoom · click to pin</div>
+        </div>
+        <aside id="panel">
+            <div id="panel-main"></div>
+            <h2>State machines</h2>
+            <div class="card" id="state-box"></div>
+            <h2>Legend</h2>
+            <div class="card">
+                <div class="legend">
+                    <div><i class="k-build"></i>builds or wires</div>
+                    <div><i class="k-call"></i>calls</div>
+                    <div><i class="k-event"></i>raises or emits</div>
+                    <div><i class="k-store"></i>stores or downloads</div>
+                    <div><i class="k-type"></i>type only</div>
+                    <div><i class="k-inner"></i>inner closure</div>
+                </div>
+            </div>
+            <h2>Reading the map</h2>
+            <div class="card empty" id="intro" style="font-size:11px"></div>
+        </aside>
+    </div>
+</div>
+<script>
+// DATA BEGIN
+const MAP = {
+    name: `@degreesign/voice`,
+    subtitle: `recognition and a lazy voice library`,
+    root: `entry.api`,
+    flow: `transcription`,
+    intro: `Bands run top to bottom in dependency order. The host enters`
+        + ` through one bundle that carries recognition and the voice library.`
+        + ` A preview clip is always local; only the selected voice downloads and`
+        + ` synthesis runs through the matching engine.`,
+    ignore: [],
+};
+
+const BANDS = [
+    { id: "host", title: "1 · host boundary", hint: "the caller owns the text", color: "#8a7a5f" },
+    { id: "entry", title: "2 · public entry", hint: "recognition and voice exports", color: "#274b6b" },
+    { id: "transcription", title: "3 · transcription core", hint: "voice, engine and session", color: "#3c5a78" },
+    { id: "session", title: "4 · audio session", hint: "features, segments, workers", color: "#35596b" },
+    { id: "dictation", title: "5 · dictation and bundles", hint: "microphone and family bundles", color: "#40657a" },
+    { id: "voice", title: "6 · voice library", hint: "voices, previews, lazy weights", color: "#2f6b52" },
+    { id: "engines", title: "7 · voice engines", hint: "soprano backbone and decoder", color: "#2a5a46" },
+    { id: "models-speech", title: "8 · speech models", hint: "whisper and sensevoice", color: "#6b5530" },
+    { id: "models-data", title: "9 · weights and formats", hint: "gguf, safetensors, specs", color: "#75603a" },
+    { id: "models-text", title: "10 · text and config", hint: "vocab, words, configs", color: "#5f6b3f" },
+    { id: "tensor", title: "11 · tensor runtime", hint: "kernels, wasm, types", color: "#5c4a6b" },
+    { id: "store", title: "12 · model store", hint: "chunks, downloads, usage", color: "#4f5d5a" },
+    { id: "platform-web", title: "13 · browser platform", hint: "indexeddb, pools, stubs", color: "#59635c" },
+    { id: "platform-node", title: "14 · node platform", hint: "files, pools, stubs", color: "#4b5952" },
+    { id: "audio-input", title: "15 · audio input", hint: "decode, resample, capture", color: "#6b4f4f" },
+    { id: "audio-codec", title: "16 · audio codecs", hint: "wav, flac, mp3", color: "#74585a" },
+    { id: "build", title: "17 · build and verify", hint: "bundles, scripts, tests", color: "#5c574f" },
+];
+
+const FILES = [];
+const NODES = [];
+const EDGES = [];
+const STATES = [];
+const FLOWS = {};
+
+const f = (id, band, label, path, loc, external = false) =>
+    FILES.push({ id, band, label, path, loc, external });
+
+const n = (file, id, line, label, sig, note = ``) =>
+    NODES.push({ id: file + `.` + id, file, line, label, sig, note });
+
+const e = (from, to, kind) => EDGES.push({ from, to, kind });
+
+const step = (ids, text) => ({ ids, text });
+
+f("host", "host", "host app", "host app", 0, true);
+f("audio.codecFlac", "audio-codec", "flac.ts", "src/audio/codec/flac.ts", 497);
+f("audio.codecMinimp3Wasm", "audio-codec", "minimp3Wasm.ts", "src/audio/codec/minimp3Wasm.ts", 328);
+f("audio.codecMp3", "audio-codec", "mp3.ts", "src/audio/codec/mp3.ts", 93);
+f("audio.codecWav", "audio-codec", "wav.ts", "src/audio/codec/wav.ts", 121);
+f("audio.inputFile", "audio-input", "file.ts", "src/audio/input/file.ts", 111);
+f("audio.inputMic", "audio-input", "mic.ts", "src/audio/input/mic.ts", 279);
+f("audio.inputPad", "audio-input", "pad.ts", "src/audio/input/pad.ts", 28);
+f("audio.inputResample", "audio-input", "resample.ts", "src/audio/input/resample.ts", 72);
+f("entry", "entry", "index.ts", "src/index.ts", 68);
+f("model.configsSensevoice", "models-text", "sensevoice.ts", "src/models/configs/sensevoice.ts", 102);
+f("model.configsSpecs", "models-data", "specs.ts", "src/models/configs/specs.ts", 165);
+f("model.configsWhisper", "models-text", "whisper.ts", "src/models/configs/whisper.ts", 173);
+f("model.formatsGguf", "models-data", "gguf.ts", "src/models/formats/gguf.ts", 152);
+f("model.formatsGgufTensor", "models-data", "ggufTensor.ts", "src/models/formats/ggufTensor.ts", 307);
+f("model.formatsSafetensors", "models-data", "safetensors.ts", "src/models/formats/safetensors.ts", 125);
+f("model.sensevoiceCtc", "models-speech", "ctc.ts", "src/models/sensevoice/ctc.ts", 32);
+f("model.sensevoiceEncoder", "models-speech", "encoder.ts", "src/models/sensevoice/encoder.ts", 324);
+f("model.sensevoiceFbank", "models-speech", "fbank.ts", "src/models/sensevoice/fbank.ts", 180);
+f("model.sensevoiceModel", "models-speech", "model.ts", "src/models/sensevoice/model.ts", 211);
+f("model.textDtw", "models-text", "dtw.ts", "src/models/text/dtw.ts", 176);
+f("model.textWords", "models-text", "words.ts", "src/models/text/words.ts", 80);
+f("model.vocabSensevoice", "models-text", "sensevoice.ts", "src/models/vocab/sensevoice.ts", 65);
+f("model.vocabWhisper", "models-text", "whisper.ts", "src/models/vocab/whisper.ts", 113);
+f("model.weightsSensevoice", "models-data", "sensevoice.ts", "src/models/weights/sensevoice.ts", 85);
+f("model.weightsWhisper", "models-data", "whisper.ts", "src/models/weights/whisper.ts", 188);
+f("model.whisperDecoder", "models-speech", "decoder.ts", "src/models/whisper/decoder.ts", 292);
+f("model.whisperEncoder", "models-speech", "encoder.ts", "src/models/whisper/encoder.ts", 224);
+f("model.whisperGenerate", "models-speech", "generate.ts", "src/models/whisper/generate.ts", 228);
+f("model.whisperModel", "models-speech", "model.ts", "src/models/whisper/model.ts", 392);
+f("platform.browserBrowser", "platform-web", "browser.ts", "src/platform/browser/browser.ts", 268);
+f("platform.browserNodeFileStub", "platform-web", "nodeFileStub.ts", "src/platform/browser/nodeFileStub.ts", 8);
+f("platform.browserPoolBrowser", "platform-web", "poolBrowser.ts", "src/platform/browser/poolBrowser.ts", 287);
+f("platform.browserPoolStub", "platform-web", "poolStub.ts", "src/platform/browser/poolStub.ts", 13);
+f("platform.nodeNode", "platform-node", "node.ts", "src/platform/node/node.ts", 147);
+f("platform.nodeNodeFile", "platform-node", "nodeFile.ts", "src/platform/node/nodeFile.ts", 10);
+f("platform.nodeNodeStub", "platform-node", "nodeStub.ts", "src/platform/node/nodeStub.ts", 9);
+f("platform.nodePoolNode", "platform-node", "poolNode.ts", "src/platform/node/poolNode.ts", 189);
+f("platform.storeChunk", "store", "chunk.ts", "src/platform/store/chunk.ts", 295);
+f("platform.storeDownload", "store", "download.ts", "src/platform/store/download.ts", 456);
+f("platform.storeIndex", "store", "index.ts", "src/platform/store/index.ts", 24);
+f("platform.storeUsage", "store", "usage.ts", "src/platform/store/usage.ts", 261);
+f("tts.download", "voice", "download.ts", "src/speech/download.ts", 280);
+f("tts.engine", "voice", "engine.ts", "src/speech/engine.ts", 44);
+f("tts.enginesFft", "engines", "fft.ts", "src/speech/engines/fft.ts", 120);
+f("tts.enginesSoprano", "engines", "soprano.ts", "src/speech/engines/soprano.ts", 627);
+f("tts.enginesTokenizer", "engines", "tokenizer.ts", "src/speech/engines/tokenizer.ts", 133);
+f("tts.index", "entry", "index.ts", "src/speech/index.ts", 15);
+f("tts.sample", "voice", "sample.ts", "src/speech/sample.ts", 41);
+f("tts.samples", "voice", "samples.ts", "src/speech/samples.ts", 4867);
+f("tts.types", "voice", "types.ts", "src/speech/types.ts", 113);
+f("tts.voices", "voice", "voices.ts", "src/speech/voices.ts", 135);
+f("tensor.coreBinary", "tensor", "binary.ts", "src/tensor/core/binary.ts", 105);
+f("tensor.coreMath", "tensor", "math.ts", "src/tensor/core/math.ts", 21);
+f("tensor.coreTypes", "tensor", "types.ts", "src/tensor/core/types.ts", 1474);
+f("tensor.kernelKernels", "tensor", "kernels.ts", "src/tensor/kernel/kernels.ts", 352);
+f("tensor.kernelKernelsWasm", "tensor", "kernelsWasm.ts", "src/tensor/kernel/kernelsWasm.ts", 438);
+f("tensor.kernelWasm", "tensor", "wasm.ts", "src/tensor/kernel/wasm.ts", 670);
+f("tr.bundleSenseVoice", "dictation", "senseVoice.ts", "src/transcription/bundle/senseVoice.ts", 47);
+f("tr.bundleWhisper", "dictation", "whisper.ts", "src/transcription/bundle/whisper.ts", 48);
+f("tr.coreApi", "transcription", "api.ts", "src/transcription/core/api.ts", 40);
+f("tr.coreEngine", "transcription", "engine.ts", "src/transcription/core/engine.ts", 266);
+f("tr.coreVoice", "transcription", "voice.ts", "src/transcription/core/voice.ts", 64);
+f("tr.dictationController", "dictation", "controller.ts", "src/transcription/dictation/controller.ts", 556);
+f("tr.dictationIndex", "entry", "index.ts", "src/transcription/dictation/index.ts", 27);
+f("tr.dictationTypes", "dictation", "types.ts", "src/transcription/dictation/types.ts", 187);
+f("tr.entriesSensevoice", "entry", "sensevoice.ts", "src/transcription/entries/sensevoice.ts", 45);
+f("tr.entriesWhisper", "entry", "whisper.ts", "src/transcription/entries/whisper.ts", 45);
+f("tr.sessionEnv", "session", "env.ts", "src/transcription/session/env.ts", 28);
+f("tr.sessionMel", "session", "mel.ts", "src/transcription/session/mel.ts", 281);
+f("tr.sessionSegment", "session", "segment.ts", "src/transcription/session/segment.ts", 189);
+f("tr.sessionSession", "transcription", "session.ts", "src/transcription/session/session.ts", 401);
+f("tr.workerWorker", "session", "worker.ts", "src/transcription/worker/worker.ts", 181);
+f("tr.workerWorkerEntry", "session", "workerEntry.ts", "src/transcription/worker/workerEntry.ts", 4);
+f("build.webpack", "build", "webpack.config.ts", "webpack.config.ts", 144);
+f("build.package", "build", "package.json", "package.json", 82);
+f("build.samples", "build", "embed-voice-samples.cjs", "scripts/embed-voice-samples.cjs", 38);
+f("build.assets", "build", "copy-assets.cjs", "scripts/copy-assets.cjs", 14);
+f("build.harness", "build", "harness.ts", "test/verify/harness.ts", 4623);
+f("build.drive", "build", "drive.cjs", "test/verify/drive.cjs", 257);
+
+n("host", "app", 0, "host app", "text · voice", "The caller owns the text, the voice and the progress.");
+n("entry", "api", 12, "public API", "transcribe + preloadVoice + loadModel + isModelCached", "Binds recognition and the voice library to the main entry.");
+n("tts.types", "voiceId", 5, "VoiceId", "female_1 · female_2 · male_1", "Stable identifiers of the three library voices.");
+n("tts.types", "gender", 15, "VoiceGender", "female · male", "Gender label shown by a voice picker.");
+n("tts.types", "family", 21, "VoiceFamily", "kokoro · soprano · qwen3-tts", "Model family behind a library voice.");
+n("tts.types", "file", 28, "VoiceFile", "repo · file · bytes", "One lazy weight file of a voice.");
+n("tts.types", "spec", 38, "VoiceSpec", "id · family · speaker · files", "One voice entry in the library.");
+n("tts.types", "sample", 64, "VoiceSample", "voice · bytes · rate", "Decoded preview clip of one voice.");
+n("tts.types", "progress", 76, "VoiceDownloadProgress", "voice · file · loaded · total", "Aggregate progress of a voice download.");
+n("tts.types", "options", 92, "LoadVoiceOptions", "voice · base · onProgress", "Input of the lazy voice loader.");
+n("tts.types", "audio", 108, "VoiceAudio", "pcm · sampleRate", "Mono output shape reserved for synthesis.");
+n("tts.voices", "preview", 6, "PREVIEW", "string", "Fixed line rendered for every preview clip.");
+n("tts.voices", "rate", 8, "PREVIEW_RATE", "16000", "Sample rate of the bundled preview clips.");
+n("tts.voices", "table", 15, "VOICES", "Record<VoiceId, VoiceSpec>", "The three voices and their model files.");
+n("tts.voices", "list", 121, "listVoices", "() => VoiceSpec[]", "Lists the library in picker order.");
+n("tts.voices", "get", 127, "getVoiceSpec", "(voice: VoiceId) => VoiceSpec", "Reads one voice and rejects an unknown id.");
+n("tts.samples", "clips", 4, "sample clips", "female_1 · female_2 · male_1", "Base64 WAV previews bundled with the package.");
+n("tts.sample", "decode", 16, "decode", "(base64: string) => Uint8Array", "Decodes one base64 clip into WAV bytes.");
+n("tts.sample", "get", 26, "getVoiceSample", "(voice: VoiceId) => VoiceSample", "Returns a cached preview for one voice.");
+n("tts.download", "load", 184, "loadVoice", "(options) => Promise<VoiceSpec>", "Downloads every missing file of one voice.");
+n("tts.download", "fetch", 84, "fetchFile", "(options) => Promise<void>", "Fetches one file with cleanup and retries.");
+n("tts.download", "cached", 130, "isVoiceCached", "(voice) => Promise<boolean>", "Reads the store without touching the network.");
+n("tts.download", "remove", 148, "removeVoice", "(voice) => Promise<void>", "Drops every stored file of one voice.");
+n("tts.engine", "synth", 25, "synthesize", "(options) => Promise<VoiceAudio>", "Loads the selected voice and dispatches to its engine.");
+n("tts.enginesFft", "istft", 71, "inverseStft", "(options) => Float32Array", "Centered inverse STFT for the vocoder head.");
+n("tts.enginesTokenizer", "create", 99, "createTokenizer", "(json) => SopranoTokenizer", "Builds the Soprano byte pair tokenizer.");
+n("tts.enginesSoprano", "run", 384, "synthesizeSoprano", "(options) => Promise<VoiceAudio>", "Runs the Qwen3 backbone and the Vocos decoder.");
+n("tts.enginesSoprano", "load", 178, "loadTensors", "(options) => SopranoTensors", "Reads the language and decoder GGUF tensors.");
+n("tts.enginesSoprano", "decode", 240, "decode", "(options) => Float32Array", "Turns hidden states into 32 kHz audio.");
+n("tts.enginesSoprano", "interp", 34, "interpolate", "(options) => Float32Array", "Upsamples hidden states four times.");
+n("tts.index", "public", 2, "voice barrel", "voices · samples · download · synth", "Re-exports the voice library through the main entry.");
+n("tr.coreVoice", "create", 47, "createVoice", "(input) => Voice", "Builds a voice over one platform store.");
+n("tr.coreVoice", "get", 57, "getVoice", "() => Voice", "Returns the shared recognition voice.");
+n("tr.coreEngine", "create", 36, "createVoiceEngine", "(options) => Voice", "Wires the families to the shared engine.");
+n("tr.coreApi", "create", 12, "createApi", "(voice: Voice) => VoiceApi", "Builds the public recognition functions.");
+n("tr.sessionSession", "create", 52, "createSession", "(options) => TranscribeSession", "Streams audio into a recognition session.");
+n("tr.sessionMel", "fft", 57, "buildFftPlan", "(size) => FftPlan", "Prepares the radix two FFT tables.");
+n("tr.sessionMel", "mel", 202, "computeMel", "(options) => Float32Array", "Turns PCM into log mel features.");
+n("tr.sessionSegment", "plan", 38, "planChunks", "(options) => Chunk[]", "Splits long audio on quiet boundaries.");
+n("tr.sessionEnv", "detect", 5, "detectPlatform", "() => Platform", "Detects Node or the browser.");
+n("tr.dictationController", "create", 229, "createDictation", "(options) => Dictation", "Headless microphone dictation controller.");
+n("tr.dictationIndex", "support", 2, "isDictationSupported", "() => boolean", "Public dictation entry.");
+n("tr.workerWorker", "serve", 166, "serveDictation", "() => void", "Serves dictation messages in a worker.");
+n("tr.bundleSenseVoice", "voice", 30, "createVoice", "() => Voice", "SenseVoice only bundle.");
+n("tr.bundleWhisper", "voice", 31, "createVoice", "() => Voice", "Whisper only bundle.");
+n("model.whisperModel", "load", 39, "loadWhisper", "(options) => Promise<LoadedWhisper>", "Parses a Whisper checkpoint.");
+n("model.whisperModel", "run", 291, "transcribeWhisper", "(options) => Transcript", "Decodes one Whisper window.");
+n("model.whisperEncoder", "encode", 67, "encode", "(options) => Float32Array", "Runs the Whisper audio encoder.");
+n("model.whisperDecoder", "step", 100, "decoderStep", "(options) => number", "One autoregressive decoder step.");
+n("model.whisperGenerate", "run", 164, "generate", "(options) => number[]", "Generates Whisper tokens.");
+n("model.sensevoiceModel", "load", 25, "loadSenseVoice", "(options) => Promise<LoadedSenseVoice>", "Parses the SenseVoice GGUF.");
+n("model.sensevoiceModel", "run", 117, "transcribeSenseVoice", "(options) => Transcript", "Decodes one SenseVoice window.");
+n("model.sensevoiceEncoder", "encode", 243, "encodeSenseVoice", "(options) => Float32Array", "Runs the SenseVoice encoder.");
+n("model.sensevoiceCtc", "ctc", 6, "decodeCtc", "(options) => string", "Collapses CTC logits into text.");
+n("model.sensevoiceFbank", "features", 70, "computeSenseVoiceFeatures", "(options) => Float32Array", "Builds SenseVoice log mel frames.");
+n("model.weightsWhisper", "weights", 104, "createWhisperWeights", "(options) => WhisperWeights", "Maps Safetensors names to Whisper.");
+n("model.weightsSensevoice", "weights", 14, "createGgufWeights", "(options) => SenseVoiceWeights", "Maps GGUF names to SenseVoice.");
+n("model.formatsGguf", "parse", 26, "parseGguf", "(options) => GgufFile", "Parses a GGUF container.");
+n("model.formatsSafetensors", "parse", 11, "parseSafetensors", "(options) => SafetensorsFile", "Parses a Safetensors container.");
+n("model.formatsGgufTensor", "read", 229, "readGgufTensor", "(options) => Float32Array", "Reads one GGUF tensor as f32.");
+n("model.configsSpecs", "resolve", 113, "resolveSpec", "(options) => ModelSpec", "Chooses one checkpoint and quality.");
+n("model.vocabWhisper", "tokenizer", 30, "loadTokenizer", "(json) => Tokenizer", "Loads the Whisper BPE tokenizer.");
+n("model.textWords", "words", 7, "buildWords", "(options) => Word[]", "Builds word level timestamps.");
+n("tensor.kernelKernels", "linear", 238, "linear", "(options) => Float32Array", "Matrix multiply with an optional bias.");
+n("tensor.kernelKernels", "norm", 116, "layerNorm", "(options) => Float32Array", "Row wise layer normalization.");
+n("tensor.kernelKernels", "attention", 242, "attention", "(options) => Float32Array", "Multi head scaled dot product attention.");
+n("tensor.kernelWasm", "get", 138, "getKernel", "() => WasmKernel", "Loads the bundled WASM kernels.");
+n("tensor.coreTypes", "types", 1, "shared types", "model · store · progress", "Every shared runtime type and enum.");
+n("platform.storeIndex", "get", 17, "getStore", "() => Promise<ModelStore>", "Selects the Node or browser store.");
+n("platform.storeDownload", "prepare", 352, "prepareModel", "(options) => Promise<ModelSpec>", "Downloads and verifies one checkpoint.");
+n("platform.browserBrowser", "create", 141, "createBrowserStore", "() => ModelStore", "IndexedDB backed browser store.");
+n("platform.browserPoolBrowser", "create", 178, "createPool", "(options) => Pool", "Browser worker pool for decoding.");
+n("platform.nodeNode", "create", 35, "createNodeStore", "() => ModelStore", "Filesystem backed Node store.");
+n("audio.inputFile", "decode", 85, "decodeSource", "(options) => Promise<Float32Array>", "Decodes a path, URL or blob.");
+n("audio.inputMic", "capture", 26, "captureMicrophone", "(options) => Capture", "Opens the microphone stream.");
+n("audio.inputResample", "resample", 38, "resampleAudio", "(options) => Float32Array", "Resamples PCM to 16 kHz.");
+n("audio.codecWav", "wav", 63, "decodeWav", "(bytes) => Float32Array", "Decodes a WAV container.");
+n("audio.codecMp3", "mp3", 31, "decodeMp3", "(bytes) => Float32Array", "Decodes MP3 with minimp3.");
+n("audio.codecFlac", "flac", 384, "decodeFlac", "(bytes) => Float32Array", "Decodes a FLAC container.");
+n("build.webpack", "bundles", 129, "bundles", "browser + node", "Emits the recognition and voice bundle from one entry.");
+n("build.package", "exports", 8, "exports", "one main entry", "Maps the main entry to its bundles and types.");
+n("build.samples", "script", 37, "embed", "wav to base64", "Regenerates the bundled preview module.");
+n("build.assets", "script", 13, "copy", "src to dist", "Copies the preview assets into dist.");
+n("build.harness", "definitions", 1233, "definitions", "browser suite", "Asserts every exported function in Chromium.");
+n("build.drive", "serve", 79, "serve", "static + fixtures", "Serves the page, fixtures and fault injection.");
+
+e("host.app", "entry.api", "call");
+e("entry.api", "tr.coreApi.create", "call");
+e("tr.coreApi.create", "tr.coreVoice.get", "call");
+e("tr.coreVoice.get", "tr.coreEngine.create", "call");
+e("tr.coreEngine.create", "model.whisperModel.load", "call");
+e("tr.coreEngine.create", "model.sensevoiceModel.load", "call");
+e("tr.coreApi.create", "tr.sessionSession.create", "call");
+e("tr.sessionSession.create", "model.whisperModel.run", "call");
+e("tr.sessionSession.create", "model.sensevoiceModel.run", "call");
+e("model.whisperModel.load", "model.weightsWhisper.weights", "call");
+e("model.whisperModel.run", "model.whisperGenerate.run", "call");
+e("model.whisperModel.run", "tr.sessionMel.mel", "call");
+e("model.sensevoiceModel.load", "model.weightsSensevoice.weights", "call");
+e("model.sensevoiceModel.run", "model.sensevoiceEncoder.encode", "call");
+e("model.sensevoiceModel.run", "model.sensevoiceCtc.ctc", "call");
+e("model.sensevoiceModel.run", "model.sensevoiceFbank.features", "call");
+e("model.weightsWhisper.weights", "model.formatsSafetensors.parse", "call");
+e("model.weightsSensevoice.weights", "model.formatsGguf.parse", "call");
+e("tr.sessionMel.mel", "tr.sessionMel.fft", "call");
+e("tr.sessionMel.fft", "tensor.kernelKernels.linear", "call");
+e("tr.sessionSession.create", "tr.sessionSegment.plan", "call");
+e("tr.coreVoice.get", "platform.storeIndex.get", "store");
+e("platform.storeIndex.get", "platform.browserBrowser.create", "store");
+e("platform.storeIndex.get", "platform.nodeNode.create", "store");
+e("tts.index.public", "tts.voices.list", "call");
+e("tts.index.public", "tts.voices.get", "call");
+e("tts.index.public", "tts.sample.get", "call");
+e("tts.index.public", "tts.download.load", "call");
+e("tts.index.public", "tts.engine.synth", "call");
+e("tts.engine.synth", "tts.download.load", "call");
+e("tts.engine.synth", "tts.enginesSoprano.run", "call");
+e("tts.engine.synth", "platform.storeIndex.get", "store");
+e("tts.enginesSoprano.run", "tts.enginesTokenizer.create", "call");
+e("tts.enginesSoprano.run", "tts.enginesSoprano.load", "call");
+e("tts.enginesSoprano.run", "tts.enginesSoprano.decode", "call");
+e("tts.enginesSoprano.run", "tts.voices.get", "call");
+e("tts.enginesSoprano.decode", "tts.enginesSoprano.interp", "call");
+e("tts.enginesSoprano.decode", "tts.enginesFft.istft", "call");
+e("tts.enginesSoprano.load", "model.formatsGguf.parse", "call");
+e("tts.enginesSoprano.load", "model.formatsGgufTensor.read", "call");
+e("tts.index.public", "tts.download.cached", "call");
+e("tts.index.public", "tts.download.remove", "call");
+e("tts.voices.list", "tts.voices.table", "call");
+e("tts.voices.get", "tts.voices.table", "call");
+e("tts.sample.get", "tts.voices.get", "call");
+e("tts.sample.get", "tts.sample.decode", "call");
+e("tts.sample.decode", "tts.samples.clips", "call");
+e("tts.download.load", "tts.download.fetch", "call");
+e("tts.download.load", "tts.voices.get", "call");
+e("tts.download.fetch", "platform.storeIndex.get", "store");
+e("tts.download.fetch", "model.configsSpecs.resolve", "type");
+e("tts.download.cached", "platform.storeIndex.get", "store");
+e("tts.download.remove", "platform.storeIndex.get", "store");
+e("tts.voices.table", "tts.types.spec", "type");
+e("tts.sample.get", "tts.types.sample", "type");
+e("tts.download.load", "tts.types.options", "type");
+e("build.webpack.bundles", "entry.api", "build");
+e("build.package.exports", "entry.api", "build");
+e("entry.api", "tts.index.public", "call");
+e("build.samples.script", "tts.samples.clips", "build");
+e("build.assets.script", "tts.samples.clips", "build");
+e("build.harness.definitions", "tts.index.public", "call");
+e("build.harness.definitions", "build.drive.serve", "event");
+
+STATES.push({
+    title: `Voice cache`,
+    viewBox: `0 0 320 62`,
+    boxes: [
+        { x: 8, y: 20, w: 58, label: `cold` },
+        { x: 116, y: 20, w: 66, label: `loading` },
+        { x: 232, y: 20, w: 58, label: `ready` },
+    ],
+    arrows: [
+        { d: `M66,32 L116,32` },
+        { d: `M182,32 L232,32` },
+        { d: `M149,20 C149,2 37,2 37,20`, label: `retry`, x: 80, y: 10 },
+        { d: `M261,20 C261,50 37,50 37,32`, label: `remove`, x: 140, y: 54 },
+    ],
+});
+
+FLOWS.transcription = {
+    title: `one transcription end to end`,
+    steps: [
+        step([`host.app`, `entry.api`], ` The caller passes audio, options and progress.`),
+        step([`tr.coreApi.create`, `tr.coreVoice.get`], ` The API binds to the shared voice.`),
+        step([`tr.coreEngine.create`, `model.whisperModel.load`], ` The engine loads the chosen family.`),
+        step([`tr.sessionSession.create`, `model.whisperModel.run`], ` Audio streams into the decoder.`),
+    ],
+};
+
+FLOWS.tts = {
+    title: `one voice preview and lazy load`,
+    steps: [
+        step([`host.app`, `entry.api`, `tts.index.public`], ` The caller picks a voice from the main bundle.`),
+        step([`tts.voices.get`, `tts.sample.get`], ` Metadata and the bundled preview come back without a download.`),
+        step([`tts.download.load`, `tts.download.fetch`], ` The first loadVoice fetches every missing file.`),
+        step([`tts.engine.synth`, `tts.enginesSoprano.run`], ` synthesize runs the selected engine over the stored weights.`),
+        step([`platform.storeIndex.get`, `tts.download.cached`], ` The store persists the files for warm starts and refresh.`),
+    ],
+};
+
+// DATA END
+
+(() => {
+    const FILES_BY_ID = new Map(FILES.map(file => [file.id, file]));
+    const NODE_BY_ID = new Map(NODES.map(node => [node.id, node]));
+    const SHORT = new Map();
+    for (const node of NODES) {
+        const key = node.id.split(`.`).pop();
+        SHORT.set(key, SHORT.has(key) ? null : node);
+    }
+    const find = key => NODE_BY_ID.get(key) || SHORT.get(key) || null;
+    const LINKS = EDGES.map(edge => {
+        const a = find(edge.from);
+        const b = find(edge.to);
+        return a && b ? { a: a.id, b: b.id, kind: edge.kind } : null;
+    }).filter(Boolean);
+
+    const NEAR = new Map(NODES.map(node => [node.id, new Set()]));
+    for (const link of LINKS) {
+        NEAR.get(link.a).add(link.b);
+        NEAR.get(link.b).add(link.a);
+    }
+
+    const BAND_INDEX = new Map(BANDS.map((band, index) => [band.id, index]));
+    const bandOf = id => BAND_INDEX.get(FILES_BY_ID.get(NODE_BY_ID.get(id).file).band);
+
+    const COL_W = 208;
+    const COLS_MAX = 8;
+    const GAP = { row: 6, col: 12, file: 30, band: 38, pad: 26, head: 24 };
+
+    const canvas = document.getElementById(`canvas`);
+    const svg = document.getElementById(`edges`);
+    const viewport = document.getElementById(`viewport`);
+    const panelMain = document.getElementById(`panel-main`);
+    const stateBox = document.getElementById(`state-box`);
+    const search = document.getElementById(`search`);
+    const zoomLabel = document.getElementById(`zoom`);
+    const flowButton = document.getElementById(`flow`);
+    const bandsBar = document.getElementById(`bands`);
+    const meta = document.getElementById(`meta`);
+
+    const state = { scale: 1, x: 0, y: 0 };
+    const pos = new Map();
+    const bandBox = new Map();
+    let size = { w: 0, h: 0 };
+    let preview = null;
+    let selected = null;
+    let flow = null;
+    let query = ``;
+
+    const esc = value => `${value}`.replace(/&/g, `&amp;`).replace(/</g, `&lt;`)
+        .replace(/>/g, `&gt;`);
+
+    const nodeEl = (node, band) => {
+        const el = document.createElement(`div`);
+        el.className = `node`;
+        el.tabIndex = 0;
+        el.dataset.id = node.id;
+        el.dataset.band = band;
+        el.innerHTML = `<span class="no"></span>`
+            + `<div class="lbl">${esc(node.label)}</div>`
+            + `<div class="sig">${esc(node.sig)}</div>`
+            + `<span class="ln">${node.line ? `L` + node.line : ``}</span>`;
+        return el;
+    };
+
+    const buildCanvas = () => {
+        canvas.querySelectorAll(`.band, .file, .wash`).forEach(el => el.remove());
+        pos.clear();
+        bandBox.clear();
+        let cursorY = GAP.pad;
+        let maxRight = 0;
+        for (const band of BANDS) {
+            const title = document.createElement(`div`);
+            title.className = `band`;
+            title.style.top = `${cursorY}px`;
+            const count = NODES.filter(node =>
+                FILES_BY_ID.get(node.file).band === band.id).length;
+            title.innerHTML = `<b>${esc(band.title)}</b><span>${esc(band.hint)}</span>`
+                + `<span>${count} nodes</span>`;
+            canvas.appendChild(title);
+            const wash = document.createElement(`div`);
+            wash.className = `wash`;
+            wash.dataset.band = band.id;
+            wash.style.top = `${cursorY}px`;
+            wash.style.setProperty(`--band`, band.color || `#8a7a5f`);
+            canvas.appendChild(wash);
+            let cursorX = GAP.pad;
+            const placed = [];
+            for (const file of FILES.filter(item => item.band === band.id)) {
+                const nodes = NODES.filter(node => node.file === file.id);
+                const wrap = document.createElement(`div`);
+                wrap.className = `file`;
+                wrap.style.left = `${cursorX}px`;
+                wrap.style.top = `${cursorY + GAP.head}px`;
+                wrap.style.setProperty(`--band`, band.color || `#8a7a5f`);
+                const head = document.createElement(`div`);
+                head.className = `file-head`;
+                head.dataset.band = band.id;
+                head.innerHTML = `<b>${esc(file.label)}</b><i>${esc(file.path)}</i>`;
+                wrap.appendChild(head);
+                const cols = document.createElement(`div`);
+                cols.className = `file-cols`;
+                for (let i = 0; i < nodes.length; i += COLS_MAX) {
+                    const col = document.createElement(`div`);
+                    col.className = `col`;
+                    for (const node of nodes.slice(i, i + COLS_MAX))
+                        col.appendChild(nodeEl(node, band.id));
+                    cols.appendChild(col);
+                }
+                const colCount = Math.ceil(nodes.length / COLS_MAX) || 1;
+                wrap.appendChild(cols);
+                canvas.appendChild(wrap);
+                placed.push({ wrap, file });
+                cursorX += colCount * COL_W + (colCount - 1) * GAP.col + GAP.file;
+            }
+            let bandH = 0;
+            let bandRight = GAP.pad;
+            for (const item of placed) bandH = Math.max(bandH, item.wrap.offsetHeight);
+            for (const item of placed) {
+                const left = item.wrap.offsetLeft;
+                const top = item.wrap.offsetTop;
+                const nodes = item.wrap.querySelectorAll(`.node`);
+                for (const el of nodes) {
+                    pos.set(el.dataset.id, {
+                        x: left + el.offsetLeft,
+                        y: top + el.offsetTop,
+                        w: el.offsetWidth,
+                        h: el.offsetHeight,
+                    });
+                }
+                maxRight = Math.max(maxRight, left + item.wrap.offsetWidth);
+                bandRight = Math.max(bandRight, left + item.wrap.offsetWidth);
+            }
+            wash.style.height = `${GAP.head + bandH + 12}px`;
+            bandBox.set(band.id, { y: cursorY, h: GAP.head + bandH, w: bandRight + GAP.pad });
+            cursorY += GAP.head + bandH + GAP.band;
+        }
+        size = {
+            w: Math.max(52, maxRight + GAP.pad),
+            h: Math.max(52, cursorY - GAP.band + GAP.pad),
+        };
+        canvas.style.width = `${size.w}px`;
+        canvas.style.height = `${size.h}px`;
+        svg.setAttribute(`width`, size.w);
+        svg.setAttribute(`height`, size.h);
+        canvas.querySelectorAll(`.band`).forEach(el => {
+            el.style.left = `10px`;
+            el.style.width = `${size.w - 20}px`;
+        });
+        canvas.querySelectorAll(`.wash`).forEach(el => {
+            el.style.width = `${size.w - 12}px`;
+        });
+    };
+
+    const ARROW = {
+        build: `#6f9464`,
+        call: `#5579a4`,
+        event: `#c08a4a`,
+        store: `#9878ad`,
+        type: `#a49b8c`,
+        inner: `#b9ab95`,
+    };
+
+    const shape = (a, b) => {
+        const pa = pos.get(a);
+        const pb = pos.get(b);
+        const vertical = bandOf(a) !== bandOf(b);
+        if (vertical) {
+            const down = pb.y > pa.y;
+            const p1 = { x: pa.x + pa.w / 2, y: down ? pa.y + pa.h : pa.y };
+            const p2 = { x: pb.x + pb.w / 2, y: down ? pb.y : pb.y + pb.h };
+            const d = Math.max(30, Math.abs(p2.y - p1.y) * 0.42) * (down ? 1 : -1);
+            return `M${p1.x},${p1.y}`
+                + `C${p1.x},${p1.y + d} ${p2.x},${p2.y - d} ${p2.x},${p2.y}`;
+        }
+        const right = pb.x > pa.x;
+        const p1 = { x: right ? pa.x + pa.w : pa.x, y: pa.y + pa.h / 2 };
+        const p2 = { x: right ? pb.x : pb.x + pb.w, y: pb.y + pb.h / 2 };
+        const d = Math.max(30, Math.abs(p2.x - p1.x) * 0.42) * (right ? 1 : -1);
+        return `M${p1.x},${p1.y}`
+            + `C${p1.x + d},${p1.y} ${p2.x - d},${p2.y} ${p2.x},${p2.y}`;
+    };
+
+    const drawEdges = () => {
+        let out = `<defs>`;
+        for (const [kind, color] of Object.entries(ARROW)) {
+            out += `<marker id="ar-${kind}" viewBox="0 0 8 8" refX="7.4" refY="4"`
+                + ` markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">`
+                + `<path d="M0,0.7 L7.4,4 L0,7.3 Z" fill="${color}"></path></marker>`;
+        }
+        out += `</defs>`;
+        for (const link of LINKS) {
+            out += `<path class="edge k-${link.kind}" data-from="${link.a}"`
+                + ` data-to="${link.b}" marker-end="url(#ar-${link.kind})"`
+                + ` d="${shape(link.a, link.b)}"></path>`;
+        }
+        svg.innerHTML = out;
+    };
+
+    const apply = () => {
+        canvas.style.transform =
+            `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+        zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
+    };
+
+    const fit = () => {
+        const rect = viewport.getBoundingClientRect();
+        const scale = Math.min((rect.width - 36) / size.w, (rect.height - 36) / size.h, 1);
+        state.scale = Math.max(0.16, scale);
+        state.x = (rect.width - size.w * state.scale) / 2;
+        state.y = (rect.height - size.h * state.scale) / 2;
+        apply();
+    };
+
+    const focusBand = id => {
+        const box = bandBox.get(id);
+        if (!box) return;
+        const rect = viewport.getBoundingClientRect();
+        const scale = Math.min((rect.width - 48) / box.w, (rect.height - 48) / box.h, 1.2);
+        state.scale = Math.max(0.2, scale);
+        state.x = (rect.width - box.w * state.scale) / 2;
+        state.y = (rect.height - box.h * state.scale) / 2 - box.y * state.scale;
+        apply();
+    };
+
+    const centerOn = id => {
+        const point = pos.get(id);
+        if (!point) return;
+        const rect = viewport.getBoundingClientRect();
+        state.scale = Math.min(1.25, Math.max(state.scale, 0.82));
+        state.x = rect.width / 2 - (point.x + point.w / 2) * state.scale;
+        state.y = rect.height / 2 - (point.y + point.h / 2) * state.scale;
+        apply();
+    };
+
+    const paint = () => {
+        const focus = preview || selected;
+        const around = focus ? NEAR.get(focus) : null;
+        document.querySelectorAll(`.node`).forEach(el => {
+            const id = el.dataset.id;
+            let lit = false;
+            let dim = false;
+            if (query) {
+                const node = NODE_BY_ID.get(id);
+                const hay = `${node.label} ${node.sig} ${node.id}`.toLowerCase();
+                lit = hay.includes(query);
+                dim = !lit;
+            } else if (flow) {
+                lit = flow.ids.has(id);
+                dim = !lit;
+            } else if (focus) {
+                lit = id === focus || around.has(id);
+                dim = !lit;
+            }
+            el.classList.toggle(`lit`, lit);
+            el.classList.toggle(`dim`, dim);
+            el.classList.toggle(`hit`, !!query && lit);
+            el.classList.toggle(`sel`, id === selected);
+            el.classList.toggle(`step`, !!(flow && flow.ids.has(id)));
+        });
+        svg.querySelectorAll(`.edge`).forEach(el => {
+            const from = el.dataset.from;
+            const to = el.dataset.to;
+            let lit = false;
+            let dim = false;
+            if (query) {
+                dim = true;
+            } else if (flow) {
+                lit = flow.links.has(`${from}>${to}`);
+                dim = !lit;
+            } else if (focus) {
+                lit = from === focus || to === focus;
+                dim = !lit;
+            }
+            el.classList.toggle(`lit`, lit);
+            el.classList.toggle(`dim`, dim);
+        });
+    };
+
+    const relations = id => {
+        const ins = new Map();
+        const outs = new Map();
+        const add = (map, key, kind) => {
+            if (!map.has(key)) map.set(key, new Set());
+            map.get(key).add(kind);
+        };
+        for (const link of LINKS) {
+            if (link.b === id) add(ins, link.a, link.kind);
+            if (link.a === id) add(outs, link.b, link.kind);
+        }
+        return { ins, outs };
+    };
+
+    const pathToRoot = id => {
+        const root = find(MAP.root);
+        if (!root) return [];
+        const target = root.id;
+        const prev = new Map([[id, null]]);
+        const queue = [id];
+        while (queue.length) {
+            const at = queue.shift();
+            if (at === target) break;
+            for (const link of LINKS) {
+                if (link.b !== at || prev.has(link.a)) continue;
+                prev.set(link.a, at);
+                queue.push(link.a);
+            }
+        }
+        if (!prev.has(target)) return [];
+        const chain = [];
+        let at = target;
+        while (at) {
+            chain.push(at);
+            at = prev.get(at);
+        }
+        return chain;
+    };
+
+    const stat = (label, value) =>
+        `<div><span>${label}</span><b>${value}</b></div>`;
+
+    const overview = () => {
+        const total = FILES.reduce((sum, file) => sum + file.loc, 0);
+        const list = BANDS.map(band => {
+            const count = NODES.filter(node =>
+                FILES_BY_ID.get(node.file).band === band.id).length;
+            return `<button data-band="${band.id}"`
+                + ` style="--band:${band.color || `#8a7a5f`}">`
+                + `<b>${esc(band.title)}</b>`
+                + `<span>${count} nodes · ${esc(band.hint)}</span></button>`;
+        }).join(``);
+        return `<h2>Overview</h2><div class="card"><div class="stats">`
+            + stat(`nodes`, NODES.length)
+            + stat(`relations`, LINKS.length)
+            + stat(`files`, FILES.length)
+            + stat(`lines`, `${(Math.round(total / 100) / 10)}k`)
+            + `</div></div>`
+            + (MAP.subtitle
+                ? `<div class="card empty" style="margin-top:8px">`
+                    + `${esc(MAP.subtitle)}</div>`
+                : ``)
+            + `<h2>Bands</h2><div class="card"><div class="bandlist">`
+            + (list || `<div class="empty">No band yet. Add BANDS between the`
+                + ` DATA markers.</div>`)
+            + `</div></div>`
+            + `<div class="card empty" style="margin-top:8px">`
+            + `Start from a band or search a name. Selecting a function here `
+            + `does not move the canvas.</div>`;
+    };
+
+    const linkButtons = map => [...map.entries()].map(([id, kinds]) => {
+        const node = NODE_BY_ID.get(id);
+        return `<button data-go="${id}">${esc(node.label)} `
+            + `<span>${[...kinds].join(` + `)} · ${node.file}</span></button>`;
+    }).join(``);
+
+    const nodePanel = id => {
+        const node = NODE_BY_ID.get(id);
+        const file = FILES_BY_ID.get(node.file);
+        const band = BANDS.find(item => item.id === file.band);
+        const root = find(MAP.root);
+        const { ins, outs } = relations(id);
+        const chain = pathToRoot(id);
+        const route = chain.length
+            ? chain.map(item => item === id
+                ? `<b>${esc(NODE_BY_ID.get(item).label)}</b>`
+                : esc(NODE_BY_ID.get(item).label)).join(` → `)
+            : `not reachable from the root`;
+        return `<h2>${esc(band.title)}</h2>`
+            + `<div class="card"><div class="path">${esc(file.path)}`
+            + `${node.line ? ` · L` + node.line : ``}</div>`
+            + `<p class="name">${esc(node.label)}</p>`
+            + `<div class="sig">${esc(node.sig)}</div>`
+            + (node.note ? `<div class="note">${esc(node.note)}</div>` : ``)
+            + `</div>`
+            + `<h2>Path to ${esc(root ? root.label : `the root`)}</h2>`
+            + `<div class="card"><div class="route">${route}</div></div>`
+            + `<h2>Called by ${ins.size}</h2><div class="card"><div class="rel">`
+            + (ins.size ? linkButtons(ins) : `<div class="empty">No caller</div>`)
+            + `</div></div>`
+            + `<h2>Calls ${outs.size}</h2><div class="card"><div class="rel">`
+            + (outs.size ? linkButtons(outs) : `<div class="empty">No callee</div>`)
+            + `</div></div>`
+            + `<h2>Jump</h2><div class="card"><div class="rel">`
+            + `<button data-band="${file.band}">Show the ${esc(band.id)} band</button>`
+            + `<button data-go="${id}">Center this function</button>`
+            + `</div></div>`;
+    };
+
+    const flowPanel = () => {
+        const items = flow.steps.map(step => {
+            const node = NODE_BY_ID.get(step.ids[0]);
+            return `<li data-go="${step.ids[0]}"><b>${esc(node.label)}</b>`
+                + `${esc(step.text)}</li>`;
+        }).join(``);
+        return `<h2>Flow · ${esc(flow.def.title)}</h2>`
+            + `<div class="card"><ol class="steps">${items}</ol></div>`
+            + `<div class="card empty" style="margin-top:8px">`
+            + `Click a step to pin its function. Press flow again to clear.</div>`;
+    };
+
+    const renderPanel = () => {
+        if (flow) panelMain.innerHTML = flowPanel();
+        else panelMain.innerHTML = selected ? nodePanel(selected) : overview();
+        document.getElementById(`panel`).scrollTop = 0;
+    };
+
+    const clearFlow = () => {
+        flow = null;
+        flowButton.classList.remove(`on`);
+        document.querySelectorAll(`.node .no`).forEach(el => {
+            el.textContent = ``;
+        });
+    };
+
+    const select = id => {
+        selected = id;
+        preview = null;
+        clearFlow();
+        renderPanel();
+        paint();
+    };
+
+    const startFlow = () => {
+        const def = FLOWS[MAP.flow];
+        if (!def) return;
+        const steps = def.steps.map(step => ({
+            text: step.text,
+            ids: step.ids.map(id => find(id).id),
+        }));
+        const ids = new Set();
+        const links = new Set();
+        let prev = null;
+        for (const step of steps) {
+            for (const id of step.ids) {
+                ids.add(id);
+                if (prev && prev !== id) links.add(`${prev}>${id}`);
+                prev = id;
+            }
+        }
+        flow = { def, steps, ids, links };
+        selected = null;
+        preview = null;
+        flowButton.classList.add(`on`);
+        const order = new Map();
+        steps.forEach((step, index) => step.ids.forEach(id => {
+            if (!order.has(id)) order.set(id, index + 1);
+        }));
+        document.querySelectorAll(`.node`).forEach(el => {
+            el.querySelector(`.no`).textContent = order.get(el.dataset.id) || ``;
+        });
+        renderPanel();
+        paint();
+    };
+
+    const resetSearch = () => {
+        query = ``;
+        search.value = ``;
+        paint();
+    };
+
+    const stateSvg = (machine, index) => {
+        const marker = `state-ar-${index}`;
+        const box = ({ x, y, w, label }) =>
+            `<rect x="${x}" y="${y}" width="${w}" height="24" rx="3"`
+            + ` fill="#fffdf7" stroke="#c9bda9"></rect>`
+            + `<text x="${x + w / 2}" y="${y + 16}" text-anchor="middle">${esc(label)}</text>`;
+        const arrow = ({ d, both, label, x, y }) =>
+            `<path class="state-arrow" d="${d}" marker-end="url(#${marker})"`
+            + `${both ? ` marker-start="url(#${marker})"` : ``}></path>`
+            + (label
+                ? `<text x="${x || 0}" y="${y || 0}" font-size="8">${esc(label)}</text>`
+                : ``);
+        return `<div class="state-title"${index ? ` style="margin-top:8px"` : ``}>`
+            + `${esc(machine.title)}</div>`
+            + `<svg viewBox="${machine.viewBox}" role="img"`
+            + ` aria-label="${esc(machine.title)}">`
+            + `<defs><marker id="${marker}" viewBox="0 0 8 8" refX="7" refY="4"`
+            + ` markerWidth="5" markerHeight="5" orient="auto-start-reverse">`
+            + `<path d="M0,0.7 L7,4 L0,7.3 Z" fill="#9b8f7c"></path></marker></defs>`
+            + (machine.boxes || []).map(box).join(``)
+            + (machine.arrows || []).map(arrow).join(``)
+            + `</svg>`;
+    };
+
+    const stateDiagrams = () => STATES.length
+        ? STATES.map(stateSvg).join(``)
+        : `<div class="empty">No state machine yet.</div>`;
+
+    const zoomAt = (factor, clientX, clientY) => {
+        const rect = viewport.getBoundingClientRect();
+        const mx = clientX - rect.left;
+        const my = clientY - rect.top;
+        const next = Math.min(2.4, Math.max(0.14, state.scale * factor));
+        const k = next / state.scale;
+        state.x = mx - (mx - state.x) * k;
+        state.y = my - (my - state.y) * k;
+        state.scale = next;
+        apply();
+    };
+
+    let drag = null;
+
+    viewport.addEventListener(`pointerdown`, event => {
+        if (event.button !== 0) return;
+        drag = { x: event.clientX, y: event.clientY, sx: state.x, sy: state.y, moved: 0 };
+        viewport.classList.add(`drag`);
+        try { viewport.setPointerCapture(event.pointerId); } catch { }
+    });
+
+    viewport.addEventListener(`pointermove`, event => {
+        if (!drag) return;
+        const dx = event.clientX - drag.x;
+        const dy = event.clientY - drag.y;
+        drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+        state.x = drag.sx + dx;
+        state.y = drag.sy + dy;
+        apply();
+    });
+
+    viewport.addEventListener(`pointerup`, event => {
+        if (!drag) return;
+        const moved = drag.moved;
+        drag = null;
+        viewport.classList.remove(`drag`);
+        try { viewport.releasePointerCapture(event.pointerId); } catch { }
+        if (moved > 4) return;
+        const el = event.target.closest(`.node`);
+        if (el) select(el.dataset.id);
+        else {
+            selected = null;
+            clearFlow();
+            renderPanel();
+            paint();
+        }
+    });
+
+    viewport.addEventListener(`wheel`, event => {
+        event.preventDefault();
+        zoomAt(Math.exp(-event.deltaY * 0.0014), event.clientX, event.clientY);
+    }, { passive: false });
+
+    canvas.addEventListener(`keydown`, event => {
+        if (event.key !== `Enter` && event.key !== ` `) return;
+        const el = event.target.closest(`.node`);
+        if (!el) return;
+        event.preventDefault();
+        select(el.dataset.id);
+        centerOn(el.dataset.id);
+    });
+
+    canvas.addEventListener(`mouseover`, event => {
+        const el = event.target.closest(`.node`);
+        if (!el) return;
+        if (el.contains(event.relatedTarget)) return;
+        preview = el.dataset.id;
+        paint();
+    });
+
+    canvas.addEventListener(`mouseout`, event => {
+        const el = event.target.closest(`.node`);
+        if (!el) return;
+        if (el.contains(event.relatedTarget)) return;
+        if (preview === el.dataset.id) preview = null;
+        paint();
+    });
+
+    panelMain.addEventListener(`click`, event => {
+        const go = event.target.closest(`[data-go]`);
+        if (go) {
+            select(go.dataset.go);
+            centerOn(go.dataset.go);
+            return;
+        }
+        const band = event.target.closest(`[data-band]`);
+        if (band) focusBand(band.dataset.band);
+    });
+
+    search.addEventListener(`input`, () => {
+        query = search.value.trim().toLowerCase();
+        if (query) {
+            selected = null;
+            clearFlow();
+            renderPanel();
+        }
+        paint();
+    });
+
+    flowButton.addEventListener(`click`, () => {
+        if (!FLOWS[MAP.flow]) return;
+        resetSearch();
+        if (flow) {
+            clearFlow();
+            selected = null;
+            renderPanel();
+            paint();
+        } else startFlow();
+    });
+
+    document.getElementById(`fit`).addEventListener(`click`, fit);
+    document.getElementById(`plus`).addEventListener(`click`, () => {
+        const rect = viewport.getBoundingClientRect();
+        zoomAt(1.25, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    });
+    document.getElementById(`minus`).addEventListener(`click`, () => {
+        const rect = viewport.getBoundingClientRect();
+        zoomAt(0.8, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    });
+
+    document.addEventListener(`keydown`, event => {
+        if (event.key === `Escape`) {
+            resetSearch();
+            selected = null;
+            preview = null;
+            clearFlow();
+            renderPanel();
+            paint();
+        }
+    });
+
+    BANDS.forEach(band => {
+        const button = document.createElement(`button`);
+        button.textContent = band.id;
+        button.title = band.title;
+        button.dataset.band = band.id;
+        button.style.setProperty(`--band`, band.color || `#8a7a5f`);
+        button.addEventListener(`click`, () => focusBand(band.id));
+        bandsBar.appendChild(button);
+    });
+
+    const boot = () => {
+        if (MAP.name) {
+            document.querySelector(`.brand h1`).textContent = MAP.name;
+            document.title = `${MAP.name} · code structure`;
+        }
+        document.getElementById(`intro`).innerHTML = MAP.intro || ``;
+        if (!FLOWS[MAP.flow]) {
+            flowButton.disabled = true;
+            flowButton.title = `No flow defined`;
+        }
+        buildCanvas();
+        drawEdges();
+        stateBox.innerHTML = stateDiagrams();
+        renderPanel();
+        paint();
+        fit();
+        const total = FILES.reduce((sum, file) => sum + file.loc, 0);
+        meta.textContent = `${NODES.length} nodes · ${LINKS.length} relations · `
+            + `${FILES.length} files · ${(Math.round(total / 100) / 10)}k lines`;
+    };
+
+    if (document.readyState === `complete`) boot();
+    else window.addEventListener(`load`, boot, { once: true });
+})();
+</script>
+</body>
+</html>

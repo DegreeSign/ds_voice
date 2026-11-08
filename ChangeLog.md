@@ -3,6 +3,23 @@
 All notable changes to `@degreesign/voice` are recorded here. This project
 follows semantic versioning.
 
+## 1.1.0
+
+### Added
+
+- `@degreesign/voice`: voice library with `listVoices`, `getVoiceSpec`,
+  `getVoiceSample`, `loadVoice`, `isVoiceCached` and `removeVoice`.
+- `VoiceId`, `VoiceGender` and `VoiceFamily` enums.
+- Three Apache-2.0 voices filed as `female_1` (Kokoro-82M), `female_2`
+  (Soprano-1.1-80M) and `male_1` (Qwen3-TTS 0.6B). Each voice ships a 16 kHz
+  preview clip in the bundle, so its weights are only fetched on first use.
+- `loadVoice` keeps only the selected voice in the store and drops the others.
+- `synthesize({ voice, text })`: render speech with the selected voice. The
+  Soprano engine is available for `female_2`.
+- `prepareVoice({ voice })`: download and parse the selected voice without
+  synthesizing, so the first `synthesize` for that voice reuses resident
+  weights. Only one voice stays resident and a different voice replaces it.
+
 ## 0.7.0
 
 ### Added

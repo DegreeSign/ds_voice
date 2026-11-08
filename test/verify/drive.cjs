@@ -68,10 +68,64 @@ const getJson = (url) =>
             .on("error", reject);
     });
 
+const
+    /** TTS fixture counters exposed through /stats. */
+    ttsState = { requests: 0, faults: 0, seen: new Set() },
+    /** TTS fixture body for one path. */
+    ttsFixture = (url) => Buffer.from(`fixture:${url}:` + "x".repeat(64));
+
 const serve = () =>
     new Promise((resolve) => {
         const server = http.createServer((req, res) => {
-            const url = decodeURIComponent((req.url || "/").split("?")[0]);
+            const [rawPath, query] = (req.url || "/").split("?");
+            const url = decodeURIComponent(rawPath);
+            const headers = {
+                "cross-origin-opener-policy": "same-origin",
+                "cross-origin-embedder-policy": "require-corp",
+                "cache-control": "no-store",
+            };
+            if (url === "/stats") {
+                const body = JSON.stringify({
+                    requests: ttsState.requests,
+                    faults: ttsState.faults,
+                });
+                res.writeHead(200, {
+                    ...headers,
+                    "content-type": "application/json",
+                });
+                res.end(body);
+                if ((query || "").includes("reset=1")) {
+                    ttsState.requests = 0;
+                    ttsState.faults = 0;
+                    ttsState.seen.clear();
+                }
+                return;
+            }
+            if (url.startsWith("/fixtures/") || url.startsWith("/fault/")) {
+                const fault = url.startsWith("/fault/");
+                const target = fault ? url.slice("/fault".length) : url;
+                const body = ttsFixture(target);
+                ttsState.requests += 1;
+                if (fault && !ttsState.seen.has(target)) {
+                    ttsState.seen.add(target);
+                    ttsState.faults += 1;
+                    res.writeHead(200, {
+                        ...headers,
+                        "content-type": "application/octet-stream",
+                        "content-length": String(body.length),
+                    });
+                    res.write(body.subarray(0, Math.max(1, body.length >> 1)));
+                    setTimeout(() => res.destroy(), 5);
+                    return;
+                }
+                res.writeHead(200, {
+                    ...headers,
+                    "content-type": "application/octet-stream",
+                    "content-length": String(body.length),
+                });
+                res.end(body);
+                return;
+            }
             const file = path.join(ROOT, url.replace(/^\/+/, ""));
             if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
                 res.writeHead(404);
@@ -79,9 +133,8 @@ const serve = () =>
                 return;
             }
             res.writeHead(200, {
+                ...headers,
                 "content-type": MIME[path.extname(file)] || "application/octet-stream",
-                "cross-origin-opener-policy": "same-origin",
-                "cross-origin-embedder-policy": "require-corp",
             });
             fs.createReadStream(file).pipe(res);
         });

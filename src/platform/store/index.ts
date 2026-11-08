@@ -1,5 +1,5 @@
 // Platform store selection.
-import { detectPlatform } from "../../speech/session/env";
+import { detectPlatform } from "../../transcription/session/env";
 import { Platform } from "../../tensor/core/types";
 import type { ModelStore } from "../../tensor/core/types";
 let store: Promise<ModelStore> | null = null;

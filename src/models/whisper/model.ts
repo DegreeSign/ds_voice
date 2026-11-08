@@ -9,13 +9,13 @@ import {
     toModelConfig,
 } from "../configs/whisper";
 import { loadTokenizer } from "../vocab/whisper";
-import { computeMel } from "../../speech/session/mel";
+import { computeMel } from "../../transcription/session/mel";
 import { encode } from "./encoder";
 import { createDecoderState, detectLanguage } from "./decoder";
 import { generate } from "./generate";
 import { computeDtw } from "../text/dtw";
 import { buildSegments, buildWords } from "../text/words";
-import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../speech/session/segment";
+import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../transcription/session/segment";
 import { padWindow } from "../../audio/input/pad";
 import { assertWhisperShape, parseSafetensors } from "../formats/safetensors";
 import { parseGguf } from "../formats/gguf";

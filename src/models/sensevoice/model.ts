@@ -1,6 +1,6 @@
 // SenseVoice model loading.
 import { parseGguf } from "../formats/gguf";
-import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../speech/session/segment";
+import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../transcription/session/segment";
 import { padWindow } from "../../audio/input/pad";
 import { decodeCtc } from "./ctc";
 import { readSenseVoiceConfig, readSenseVoiceFrontend } from "../configs/sensevoice";

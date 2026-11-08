@@ -1,4 +1,6 @@
 import { Language, ModelId, ProgressPhase, Quality, ThreadCount, TimestampMode } from "./tensor/core/types";
 declare const transcribe: (options?: import("./tensor/core/types").TranscribeOptions) => import("./tensor/core/types").TranscribeSession, preloadVoice: (options?: import("./tensor/core/types").PreloadVoiceOptions) => Promise<void>, loadModel: (options?: import("./tensor/core/types").LoadModelOptions) => Promise<import("./tensor/core/types").Model>, isModelCached: (options?: import("./tensor/core/types").ModelOptionsBase) => Promise<boolean>;
 export { transcribe, preloadVoice, loadModel, isModelCached, Language, ModelId, ProgressPhase, Quality, ThreadCount, TimestampMode, };
+export { listVoices, getVoiceSpec, getVoiceSample, loadVoice, prepareVoice, synthesize, isVoiceCached, removeVoice, PREVIEW, PREVIEW_RATE, VoiceFamily, VoiceGender, VoiceId, } from "./speech";
+export type { LoadVoiceOptions, SynthesizeVoiceOptions, VoiceAudio, VoiceDownloadProgress, VoiceFile, VoiceSample, VoiceSpec, } from "./speech";
 export type { DiskBudgetOptions, DownloadProgress, ModelOptionsBase, PreloadVoiceOptions, ProgressHandler, Segment, TextSnapshot, TranscribeBase, TranscribeOptions, TranscribeSession, Transcript, TranscriptMeta, Word, } from "./tensor/core/types";

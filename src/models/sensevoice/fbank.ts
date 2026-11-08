@@ -1,6 +1,6 @@
 // SenseVoice kaldi fbank features.
 // Mirrors funasr wav frontend.
-import { buildFftPlan, melEnergies, powerSpectrum } from "../../speech/session/mel";
+import { buildFftPlan, melEnergies, powerSpectrum } from "../../transcription/session/mel";
 import { nextPow2 } from "../../tensor/core/math";
 import type {
     SenseVoiceFeatureOptions,

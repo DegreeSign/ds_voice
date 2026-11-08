@@ -25,8 +25,8 @@ import {
     computeMel,
     melEnergies,
     powerSpectrum,
-} from "../../src/speech/session/mel";
-import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../src/speech/session/segment";
+} from "../../src/transcription/session/mel";
+import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../src/transcription/session/segment";
 import {
     CHECKPOINT_IDS,
     DEFAULT_MODEL,
@@ -40,6 +40,24 @@ import {
     weightFiles,
 } from "../../src/models/configs/specs";
 import { ModelFamily, ModelId } from "../../src/tensor/core/types";
+import {
+    adainInPlace,
+    alignRepeat,
+    concatChannels,
+    conv1d,
+    convTranspose1d,
+    depthwiseConvTranspose1d,
+    instanceNorm,
+    reflectPadLeft,
+    roundHalfEven,
+    snakeInPlace,
+    upsample2,
+} from "../../src/speech/engines/ops";
+import { phonemizeEnglish } from "../../src/speech/engines/g2p";
+import {
+    getBundledVoiceFile,
+    isBundledVoiceFile,
+} from "../../src/speech/bundled";
 import { parseGguf } from "../../src/models/formats/gguf";
 import {
     assertWhisperShape,
@@ -105,7 +123,7 @@ import {
     touchModel,
 } from "../../src/platform/store/usage";
 import { getStore } from "../../src/platform/store/index";
-import { detectPlatform, hasMicrophone } from "../../src/speech/session/env";
+import { detectPlatform, hasMicrophone } from "../../src/transcription/session/env";
 import { decodeBytes, decodeSource } from "../../src/audio/input/file";
 import { decodeFlac } from "../../src/audio/codec/flac";
 import { decodeMp3 } from "../../src/audio/codec/mp3";
@@ -120,14 +138,14 @@ import {
     ThreadCount,
     TimestampMode,
 } from "../../src/tensor/core/types";
-import { createVoice, getVoice } from "../../src/speech/core/voice";
+import { createVoice, getVoice } from "../../src/transcription/core/voice";
 import {
     createVoice as createSenseVoiceVoice,
-} from "../../src/speech/bundle/senseVoice";
+} from "../../src/transcription/bundle/senseVoice";
 import {
     createVoice as createWhisperVoice,
-} from "../../src/speech/bundle/whisper";
-import { createSession } from "../../src/speech/session/session";
+} from "../../src/transcription/bundle/whisper";
+import { createSession } from "../../src/transcription/session/session";
 import { captureMicrophone } from "../../src/audio/input/mic";
 import {
     getKernel,
@@ -163,17 +181,31 @@ import {
     DictationErrorSource,
     DictationState,
     isDictationSupported,
-} from "../../src/speech/dictation";
-import { serveDictation } from "../../src/speech/worker/worker";
+} from "../../src/transcription/dictation";
+import { serveDictation } from "../../src/transcription/worker/worker";
+import {
+    PREVIEW,
+    PREVIEW_RATE,
+    VoiceFamily,
+    VoiceId,
+    getVoiceSpec,
+    getVoiceSample,
+    isVoiceCached,
+    listVoices,
+    loadVoice,
+    prepareVoice,
+    removeVoice,
+    synthesize,
+} from "../../src/index";
 import {
     DictationMessageType,
     DictationRequestType,
-} from "../../src/speech/dictation/types";
+} from "../../src/transcription/dictation/types";
 import type {
     DictationCapture,
     DictationMessage,
     DictationRequest,
-} from "../../src/speech/dictation/types";
+} from "../../src/transcription/dictation/types";
 import type {
     Constants,
     DownloadProgress,
@@ -204,6 +236,20 @@ interface TestOutcome {
     name: string;
     ok: boolean;
     error?: string;
+}
+
+/** Expected fields of one library voice. */
+interface TtsVoiceExpectation {
+    id: VoiceId;
+    family: VoiceFamily;
+    speaker: string;
+    sampleRate: number;
+}
+
+/** Request counters of the TTS fixture server. */
+interface TtsStats {
+    requests: number;
+    faults: number;
 }
 
 /** Result posted back by the pool worker test bundle. */
@@ -1167,6 +1213,42 @@ const
     };
 
 /** Every test, each deferred behind a function. */
+const
+    /** Expected fields of every library voice. */
+    TTS_VOICES: TtsVoiceExpectation[] = [
+        {
+            id: VoiceId.Female1,
+            family: VoiceFamily.Kokoro,
+            speaker: "af_heart",
+            sampleRate: 24000,
+        },
+        {
+            id: VoiceId.Female2,
+            family: VoiceFamily.Soprano,
+            speaker: "default",
+            sampleRate: 32000,
+        },
+        {
+            id: VoiceId.Male,
+            family: VoiceFamily.Kokoro,
+            speaker: "am_michael",
+            sampleRate: 24000,
+        },
+    ],
+    /** Fixture host for a successful download. */
+    TTS_FIXTURES = "/fixtures",
+    /** Fixture host that fails the first attempt. */
+    TTS_FAULTS = "/fault",
+    /** Read the fixture server counters. */
+    ttsStats = async (): Promise<TtsStats> => {
+        const response = await fetch("/stats");
+        return await response.json() as TtsStats;
+    },
+    /** Reset the fixture server counters. */
+    resetTtsStats = async (): Promise<void> => {
+        await fetch("/stats?reset=1");
+    };
+
 const definitions: Array<{
     name: string;
     run: () => void | Promise<void>;
@@ -1423,7 +1505,7 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech/mel buildFftPlan",
+            name: "transcription/mel buildFftPlan",
             run: () => {
                 const plan = buildFftPlan(4);
                 assertEqual(plan.n, 4, "n");
@@ -1434,7 +1516,7 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech/mel powerSpectrum",
+            name: "transcription/mel powerSpectrum",
             run: () => {
                 const
                     plan = buildFftPlan(4),
@@ -1460,7 +1542,7 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech/mel melEnergies",
+            name: "transcription/mel melEnergies",
             run: () => {
                 const out = melEnergies({
                     filters: new Float32Array([1, 2]),
@@ -1473,7 +1555,7 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech/mel computeMel",
+            name: "transcription/mel computeMel",
             run: () => {
                 const
                     mel: MelConfig = testMel(),
@@ -1493,7 +1575,7 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech/segment planChunks",
+            name: "transcription/segment planChunks",
             run: () => {
                 const chunks = planChunks({
                     pcm: new Float32Array(2000).fill(1),
@@ -1510,7 +1592,7 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech/segment hasSignal",
+            name: "transcription/segment hasSignal",
             run: () => {
                 const
                     audible = new Float32Array(1600).fill(0.1),
@@ -1568,7 +1650,7 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech/segment dedupeBoundary",
+            name: "transcription/segment dedupeBoundary",
             run: () => {
                 assertEqual(
                     dedupeBoundary({ previous: "the cat sat", next: "sat on the mat" }),
@@ -3527,7 +3609,7 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech/env detect",
+            name: "transcription/env detect",
             run: () => {
                 assertEqual(detectPlatform(), Platform.Browser, "platform");
                 assertEqual(
@@ -4277,12 +4359,458 @@ const definitions: Array<{
                 assertEqual(replies[0]?.text, ``, `empty reply`);
             },
         },
+        {
+            name: "tts/listVoices",
+            run: () => {
+                const voices = listVoices();
+                assertEqual(voices.length, TTS_VOICES.length, "three voices");
+                assertEqual(entry.listVoices, listVoices, "one bundle");
+                assertEqual(entry.getVoiceSpec, getVoiceSpec, "one getter");
+                assertEqual(entry.loadVoice, loadVoice, "one loader");
+                assertEqual(entry.prepareVoice, prepareVoice, "one prepare");
+                assertEqual(entry.synthesize, synthesize, "one synth");
+                for (let i = 0; i < TTS_VOICES.length; i += 1) {
+                    const
+                        expected = TTS_VOICES[i],
+                        voice = voices[i];
+                    assertEqual(voice?.id, expected.id, "voice order");
+                    assertEqual(voice?.family, expected.family, "voice family");
+                    assertEqual(voice?.license, "Apache-2.0", "voice license");
+                    assert((voice?.files.length ?? 0) > 0, "voice files");
+                }
+            },
+        },
+        {
+            name: "tts/getVoiceSpec each voice",
+            run: () => {
+                for (const expected of TTS_VOICES) {
+                    const voice = getVoiceSpec(expected.id);
+                    assertEqual(voice.speaker, expected.speaker, "speaker");
+                    assertEqual(voice.sampleRate, expected.sampleRate, "rate");
+                    assertEqual(voice.previewRate, PREVIEW_RATE, "preview");
+                    assertEqual(voice.preview, PREVIEW, "preview line");
+                    assert(voice.repository.length > 0, "repository");
+                    assert(voice.files.length > 0, "files");
+                }
+                assertThrows(
+                    () => getVoiceSpec("missing" as VoiceId),
+                    "unknown voice",
+                );
+            },
+        },
+        {
+            name: "tts/getVoiceSample each voice",
+            run: () => {
+                for (const expected of TTS_VOICES) {
+                    const sample = getVoiceSample(expected.id);
+                    assertEqual(sample.voice, expected.id, "sample voice");
+                    assertEqual(sample.mimeType, "audio/wav", "mime");
+                    assertEqual(sample.sampleRate, PREVIEW_RATE, "rate");
+                    assertEqual(
+                        String.fromCharCode(...sample.bytes.slice(0, 4)),
+                        "RIFF",
+                        "riff",
+                    );
+                    assertEqual(
+                        String.fromCharCode(...sample.bytes.slice(8, 12)),
+                        "WAVE",
+                        "wave",
+                    );
+                    assertEqual(
+                        getVoiceSample(expected.id).bytes,
+                        sample.bytes,
+                        "cached bytes",
+                    );
+                }
+            },
+        },
+        {
+            name: "tts/preview line",
+            run: () => {
+                assert(PREVIEW.startsWith("Hi"), "starts with hi");
+                assert(PREVIEW.endsWith("Ha ha ha!"), "ends with a laugh");
+                for (const expected of TTS_VOICES) {
+                    assertEqual(
+                        getVoiceSpec(expected.id).preview,
+                        PREVIEW,
+                        "voice preview",
+                    );
+                }
+            },
+        },
+        {
+            name: "tts/removeVoice each voice",
+            run: async () => {
+                for (const expected of TTS_VOICES) {
+                    await removeVoice(expected.id);
+                    assertEqual(
+                        await isVoiceCached(expected.id),
+                        false,
+                        "removed voice",
+                    );
+                }
+            },
+        },
+        {
+            name: "tts/synthesize rejects fixture weights",
+            run: async () => {
+                await assertRejects(
+                    async () =>
+                        await synthesize({
+                            voice: VoiceId.Female1,
+                            text: "Hello.",
+                            weightsBaseUrl: TTS_FIXTURES,
+                        }),
+                    "not a gguf",
+                );
+            },
+        },
+        {
+            name: "tts/prepareVoice rejects fixture weights",
+            run: async () => {
+                await assertRejects(
+                    async () =>
+                        await prepareVoice({
+                            voice: VoiceId.Female1,
+                            weightsBaseUrl: TTS_FIXTURES,
+                        }),
+                    "not a gguf",
+                );
+            },
+        },
+        {
+            name: "speech/ops conv1d",
+            run: () => {
+                assertList(
+                    conv1d({
+                        input: new Float32Array([1, 2, 3]),
+                        frames: 3,
+                        channels: 1,
+                        weight: new Float32Array([1, 2, 1]),
+                        outChannels: 1,
+                        kernel: 3,
+                        padding: 1,
+                    }),
+                    [4, 8, 8],
+                    "conv1d padded",
+                );
+            },
+        },
+        {
+            name: "speech/ops transposed convs",
+            run: () => {
+                assertList(
+                    convTranspose1d({
+                        input: new Float32Array([2]),
+                        frames: 1,
+                        channels: 1,
+                        weight: new Float32Array([3, 4]),
+                        bias: new Float32Array([1]),
+                        outChannels: 1,
+                        kernel: 2,
+                        stride: 2,
+                        padding: 0,
+                    }),
+                    [7, 9],
+                    "convTranspose1d",
+                );
+                assertList(
+                    depthwiseConvTranspose1d({
+                        input: new Float32Array([1, 10, 2, 20]),
+                        frames: 2,
+                        channels: 2,
+                        weight: new Float32Array([1, 0, 1, 2, 0, 2]),
+                        kernel: 3,
+                        stride: 2,
+                        padding: 1,
+                        outputPadding: 1,
+                    }),
+                    [0, 0, 3, 60, 0, 0, 2, 40],
+                    "depthwise pool",
+                );
+            },
+        },
+        {
+            name: "speech/ops normalization and shapes",
+            run: () => {
+                assertList(
+                    instanceNorm({
+                        input: new Float32Array([1, 3]),
+                        frames: 2,
+                        channels: 1,
+                    }),
+                    [-1, 1],
+                    "instanceNorm",
+                );
+                const adaptive = new Float32Array([1, 3]);
+                adainInPlace({
+                    input: adaptive,
+                    frames: 2,
+                    channels: 1,
+                    style: new Float32Array([1]),
+                    weight: new Float32Array([1, 0]),
+                    bias: new Float32Array([0, 0]),
+                });
+                assertList(adaptive, [-2, 2], "adain");
+                const snake = new Float32Array([0.5]);
+                snakeInPlace({
+                    values: snake,
+                    frames: 1,
+                    channels: 1,
+                    alpha: new Float32Array([1]),
+                });
+                assertClose(snake[0], 0.5 + Math.sin(0.5) ** 2, "snake");
+                assertList(
+                    upsample2({
+                        input: new Float32Array([1, 2]),
+                        frames: 1,
+                        channels: 2,
+                    }),
+                    [1, 2, 1, 2],
+                    "upsample2",
+                );
+                assertList(
+                    reflectPadLeft({
+                        input: new Float32Array([5, 7]),
+                        frames: 2,
+                        channels: 1,
+                    }),
+                    [7, 5, 7],
+                    "reflectPadLeft",
+                );
+                assertList(
+                    concatChannels({
+                        parts: [
+                            { data: new Float32Array([1, 2]), channels: 1 },
+                            { data: new Float32Array([3, 4, 5, 6]), channels: 2 },
+                        ],
+                        frames: 2,
+                    }),
+                    [1, 3, 4, 2, 5, 6],
+                    "concatChannels",
+                );
+                assertList(
+                    alignRepeat({
+                        input: new Float32Array([10, 20]),
+                        rows: 2,
+                        channels: 1,
+                        durations: [2, 1],
+                    }),
+                    [10, 10, 20],
+                    "alignRepeat",
+                );
+                assertEqual(roundHalfEven(0.5), 0, "round 0.5");
+                assertEqual(roundHalfEven(1.5), 2, "round 1.5");
+                assertEqual(roundHalfEven(2.5), 2, "round 2.5");
+            },
+        },
+        {
+            name: "speech/g2p English",
+            run: () => {
+                assertEqual(
+                    phonemizeEnglish("Buy two apples tomorrow."),
+                    "bˈI tˈu ˈæpᵊlz təmˈɑɹO.",
+                    "lexicon and number",
+                );
+                assertEqual(
+                    phonemizeEnglish("a voice"),
+                    "ɐ vˈYs",
+                    "article",
+                );
+                assertEqual(
+                    phonemizeEnglish("the end"),
+                    "ði ˈɛnd",
+                    "vowel article",
+                );
+            },
+        },
+        {
+            name: "speech/bundled male pack",
+            run: () => {
+                assert(
+                    isBundledVoiceFile("kokoro-voice-am_michael.gguf"),
+                    "bundled flag",
+                );
+                const bytes = getBundledVoiceFile(
+                    "kokoro-voice-am_michael.gguf",
+                );
+                assertEqual(bytes?.length, 522528, "pack length");
+                assertEqual(
+                    String.fromCharCode(
+                        ...(bytes?.subarray(0, 4) ?? []),
+                    ),
+                    "GGUF",
+                    "pack magic",
+                );
+            },
+        },
+        {
+            name: "tts/loadVoice rejects",
+            run: async () => {
+                await removeVoice(VoiceId.Female1);
+                await assertRejects(
+                    async () =>
+                        await loadVoice({
+                            voice: VoiceId.Female1,
+                            weightsBaseUrl: "data:",
+                        }),
+                    "invalid host",
+                );
+            },
+        },
     ];
+
+const
+    /** Tests that fill the store during the cold phase. */
+    ttsColdDefinitions: Array<{ name: string; run: () => Promise<void> }> = [
+        {
+            name: "tts/cold start each voice",
+            run: async () => {
+                await resetTtsStats();
+                const loaded = new Set<VoiceId>();
+                for (const expected of TTS_VOICES) {
+                    await removeVoice(expected.id);
+                    loaded.delete(expected.id);
+                    assertEqual(
+                        await isVoiceCached(expected.id),
+                        false,
+                        `${expected.id} cold`,
+                    );
+                    await loadVoice({
+                        voice: expected.id,
+                        weightsBaseUrl: TTS_FIXTURES,
+                    });
+                    loaded.add(expected.id);
+                    assertEqual(
+                        await isVoiceCached(expected.id),
+                        true,
+                        `${expected.id} loaded`,
+                    );
+                    for (const other of TTS_VOICES) {
+                        if (other.id === expected.id) {
+                            continue;
+                        }
+                        assertEqual(
+                            await isVoiceCached(other.id),
+                            loaded.has(other.id),
+                            `${other.id} kept`,
+                        );
+                    }
+                }
+                assert((await ttsStats()).requests > 0, "cold requests");
+            },
+        },
+        {
+            name: "tts/download recovery",
+            run: async () => {
+                await removeVoice(VoiceId.Female1);
+                await resetTtsStats();
+                await loadVoice({
+                    voice: VoiceId.Female1,
+                    weightsBaseUrl: TTS_FAULTS,
+                });
+                const stats = await ttsStats();
+                assert(stats.faults > 0, "fault injected");
+                assert(stats.requests > stats.faults, "retry after fault");
+                assertEqual(
+                    await isVoiceCached(VoiceId.Female1),
+                    true,
+                    "recovered file",
+                );
+                for (const other of TTS_VOICES) {
+                    if (other.id === VoiceId.Female1) {
+                        continue;
+                    }
+                    assertEqual(
+                        await isVoiceCached(other.id),
+                        true,
+                        `${other.id} kept`,
+                    );
+                }
+            },
+        },
+        {
+            name: "tts/warm start selected voice",
+            run: async () => {
+                await resetTtsStats();
+                await loadVoice({
+                    voice: VoiceId.Female1,
+                    weightsBaseUrl: TTS_FIXTURES,
+                });
+                assertEqual((await ttsStats()).requests, 0, "warm requests");
+                assertEqual(
+                    await isVoiceCached(VoiceId.Female1),
+                    true,
+                    "warm file",
+                );
+            },
+        },
+    ],
+    /** Tests that run after a real window refresh. */
+    ttsRefreshDefinitions: Array<{ name: string; run: () => Promise<void> }> = [
+        {
+            name: "tts/refresh keeps selected voice",
+            run: async () => {
+                assertEqual(
+                    await isVoiceCached(VoiceId.Female1),
+                    true,
+                    "selected persisted",
+                );
+                for (const other of TTS_VOICES) {
+                    if (other.id === VoiceId.Female1) {
+                        continue;
+                    }
+                    assertEqual(
+                        await isVoiceCached(other.id),
+                        true,
+                        `${other.id} stayed cached`,
+                    );
+                }
+                assert(
+                    getVoiceSample(VoiceId.Female1).bytes.length > 0,
+                    "selected sample",
+                );
+            },
+        },
+        {
+            name: "tts/refresh warm start",
+            run: async () => {
+                await resetTtsStats();
+                await loadVoice({
+                    voice: VoiceId.Female1,
+                    weightsBaseUrl: TTS_FIXTURES,
+                });
+                assertEqual((await ttsStats()).requests, 0, "refresh requests");
+            },
+        },
+    ],
+    /** Session keys that survive the reload. */
+    TTS_PHASE_KEY = "ttsVerifyPhase",
+    TTS_OUTCOMES_KEY = "ttsVerifyOutcomes";
 
 /** Run every test and publish the report. */
 const main = async (): Promise<void> => {
-    for (const definition of definitions) {
-        await test(definition.name, definition.run);
+    if (sessionStorage.getItem(TTS_PHASE_KEY) === "refresh") {
+        const saved = JSON.parse(
+            sessionStorage.getItem(TTS_OUTCOMES_KEY) ?? "[]",
+        ) as TestOutcome[];
+        outcomes.push(...saved);
+        for (const definition of ttsRefreshDefinitions) {
+            await test(definition.name, definition.run);
+        }
+        sessionStorage.removeItem(TTS_PHASE_KEY);
+        sessionStorage.removeItem(TTS_OUTCOMES_KEY);
+    } else {
+        for (const definition of definitions) {
+            await test(definition.name, definition.run);
+        }
+        for (const definition of ttsColdDefinitions) {
+            await test(definition.name, definition.run);
+        }
+        sessionStorage.setItem(TTS_OUTCOMES_KEY, JSON.stringify(outcomes));
+        sessionStorage.setItem(TTS_PHASE_KEY, "refresh");
+        location.reload();
+        return;
     }
     const
         pass = outcomes.filter((outcome) => outcome.ok).length,

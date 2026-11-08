@@ -1,6 +1,6 @@
 {
     "name": "@degreesign/voice",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Offline speech recognition and transcription for the browser and Node.js with the SenseVoice and Whisper models",
     "main": "dist/node/degreesign.node.min.js",
     "browser": "dist/browser/degreesign.min.js",
@@ -12,7 +12,7 @@
             "default": "./dist/node/degreesign.node.min.js"
         },
         "./dictation": {
-            "types": "./dist/dictation/index.d.ts",
+            "types": "./dist/transcription/dictation/index.d.ts",
             "default": "./dist/browser/dictation.min.js"
         },
         "./dictation/worker": "./dist/browser/dictation.worker.js",
@@ -21,12 +21,15 @@
     },
     "typesVersions": {
         "*": {
-            "dictation": ["dist/dictation/index.d.ts"]
+            "dictation": [
+                "dist/transcription/dictation/index.d.ts"
+            ]
         }
     },
     "scripts": {
-        "build": "tsc --emitDeclarationOnly && webpack",
-        "typecheck": "tsc --noEmit"
+        "build": "tsc --emitDeclarationOnly && webpack && node scripts/copy-assets.cjs",
+        "typecheck": "tsc --noEmit",
+        "samples": "node scripts/embed-voice-samples.cjs"
     },
     "repository": {
         "type": "git",
@@ -44,7 +47,9 @@
         "typescript",
         "browser",
         "nodejs",
-        "degreesign"
+        "degreesign",
+        "text to speech",
+        "tts"
     ],
     "author": "DegreeSign",
     "license": "MIT",

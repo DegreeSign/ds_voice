@@ -1,8 +1,9 @@
 # Third Parties
 
-`@degreesign/voice` is an independent TypeScript runtime for the SenseVoice and
-Whisper speech recognition models. It loads published model weights at runtime
-and ships no code, weights or data from the upstream projects.
+`@degreesign/voice` is an independent TypeScript runtime for the SenseVoice,
+Whisper and text to speech models listed below. It loads published model
+weights at runtime. The only upstream data it redistributes are the bundled
+`male_1` voice pack and the English IPA lexicon listed below.
 
 The runtime code in this repository is original work licensed under the MIT
 License. See [LICENSE](LICENSE).
@@ -63,6 +64,55 @@ License. See [LICENSE](LICENSE).
 - Contents: the F16, Q8_0 and Q4_K_M GGUF conversions of
   FunAudioLLM/SenseVoiceSmall by Alibaba Group / FunAudioLLM. The tokenizer and
   configuration are embedded in the same file.
+
+### cstr/kokoro-82m-GGUF
+
+- License: Apache License 2.0
+- Sources: https://huggingface.co/cstr/kokoro-82m-GGUF and
+  https://huggingface.co/hexgrad/Kokoro-82M
+- Contents: the Q8_0 GGUF conversion of the Kokoro 82M StyleTTS 2 checkpoint
+  used by the `female_1` and `male_1` voices.
+
+### cstr/kokoro-voices-GGUF
+
+- License: Apache License 2.0
+- Sources: https://huggingface.co/cstr/kokoro-voices-GGUF and
+  https://huggingface.co/hexgrad/Kokoro-82M
+- Contents: the F32 GGUF conversion of the `af_heart` voice pack used by
+  `female_1`.
+
+### hexgrad/misaki
+
+- License: Apache License 2.0
+- Source: https://github.com/hexgrad/misaki
+- Contents: the US gold English IPA lexicon, front-coded into `lexicon.ts`, used
+  by the Kokoro grapheme to phoneme conversion.
+
+### Bundled `male_1` voice pack
+
+- License: Apache License 2.0
+- Source: https://huggingface.co/hexgrad/Kokoro-82M
+- Contents: the `voices/am_michael.pt` style vector, converted to a Kokoro voice
+  GGUF and shipped inside the package.
+
+### BricksDisplay/Soprano-1.1-80M-GGUF
+
+- License: Apache License 2.0
+- Source: https://huggingface.co/BricksDisplay/Soprano-1.1-80M-GGUF
+- Contents: the F16 GGUF conversion of the Soprano 1.1 80M Qwen3 language model
+  and the F32 GGUF conversion of its Vocos decoder.
+
+### ekwek/Soprano-1.1-80M
+
+- License: Apache License 2.0
+- Source: https://huggingface.co/ekwek/Soprano-1.1-80M
+- Contents: the `tokenizer.json` used by the `female_2` voice.
+
+### Bundled voice previews
+
+The three preview clips under `src/assets/voices` were synthesized from the
+models above with the fixed line held in `src/speech/voices.ts`. They contain
+no upstream audio recordings and are generated output of the listed weights.
 
 ## Attribution
 
