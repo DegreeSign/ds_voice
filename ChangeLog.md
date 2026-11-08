@@ -3,7 +3,7 @@
 All notable changes to `@degreesign/voice` are recorded here. This project
 follows semantic versioning.
 
-## 1.1.0
+## 2.0.1
 
 ### Added
 
