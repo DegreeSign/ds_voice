@@ -7,13 +7,13 @@ import {
     layerNorm,
     linear,
     reluInPlace,
-} from "../../tensor/kernels";
+} from "../../tensor/kernel/kernels";
 import type {
     SenseVoiceConfig,
     SenseVoiceEncodeOptions,
     SenseVoiceEncodeResult,
     SenseVoiceLogitsOptions,
-} from "../../tensor/types";
+} from "../../tensor/core/types";
 const
     /** Sinusoidal positional encoding, positions are one based. */
     sinusoidalPe = (options: {

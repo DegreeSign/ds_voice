@@ -35,16 +35,16 @@ const
     browserPlugins: NonNullable<webpack.Configuration["plugins"]> = [
         ...(commonConfig.plugins ?? []),
         new webpack.NormalModuleReplacementPlugin(
-            /^\.\/node$/,
-            path.resolve(__dirname, "src/store/nodeStub.ts"),
+            /^\.\.\/node\/node$/,
+            path.resolve(__dirname, "src/platform/node/nodeStub.ts"),
         ),
         new webpack.NormalModuleReplacementPlugin(
-            /^\.\/nodeFile$/,
-            path.resolve(__dirname, "src/audio/nodeFileStub.ts"),
+            /^\.\.\/\.\.\/platform\/node\/nodeFile$/,
+            path.resolve(__dirname, "src/platform/browser/nodeFileStub.ts"),
         ),
         new webpack.NormalModuleReplacementPlugin(
-            /^\.\/poolNode$/,
-            path.resolve(__dirname, "src/tensor/poolBrowser.ts"),
+            /^\.\.\/\.\.\/platform\/node\/poolNode$/,
+            path.resolve(__dirname, "src/platform/browser/poolBrowser.ts"),
         ),
     ],
     // Browser webpack configuration
@@ -80,7 +80,7 @@ const
     /** Browser bundle with only the dictation controller. */
     dictationConfig: webpack.Configuration = {
         ...browserConfig,
-        entry: "./src/dictation/index.ts",
+        entry: "./src/speech/dictation/index.ts",
         output: {
             path: path.resolve(__dirname, "dist/browser"),
             filename: "dictation.min.js",
@@ -92,7 +92,7 @@ const
     /** Self contained dictation worker bundle. */
     dictationWorkerConfig: webpack.Configuration = {
         ...browserConfig,
-        entry: "./src/dictation/workerEntry.ts",
+        entry: "./src/speech/worker/workerEntry.ts",
         optimization: {
             ...browserConfig.optimization,
             sideEffects: true,
@@ -130,12 +130,12 @@ const
 module.exports = [
     browserConfig,
     familyConfig({
-        entry: "./src/sensevoice.ts",
+        entry: "./src/speech/entries/sensevoice.ts",
         filename: "sensevoice.min.js",
         library: "dsVoiceSenseVoice",
     }),
     familyConfig({
-        entry: "./src/whisper.ts",
+        entry: "./src/speech/entries/whisper.ts",
         filename: "whisper.min.js",
         library: "dsVoiceWhisper",
     }),

@@ -14,6 +14,7 @@ and no runtime dependencies.
 - [Why](#why)
 - [Install](#install)
 - [Quick start](#quick-start)
+- [Case study: DoListy](#case-study-dolisty)
 - [Dictation controller](#dictation-controller)
 - [Public API](#public-api)
 - [Models](#models)
@@ -26,6 +27,8 @@ and no runtime dependencies.
 
 ## Why
 
+- Proven: [DoListy](https://dolisty.com), a no-signup PWA, dictates tasks and
+  transcribes voice notes with `@degreesign/voice`, offline.
 - Offline: weights download once, then every transcription runs on the machine.
 - Streaming: `transcribe` returns a live handle immediately and keeps updating.
 - One API: the same entry autodetects Node.js and the browser.
@@ -118,6 +121,71 @@ setInterval(() => {
 }, 200);
 await session.stop();
 ```
+
+## Case study: DoListy
+
+[DoListy](https://dolisty.com) is a DegreeSign project: a private to-do list
+PWA with no sign-up. It ships `@degreesign/voice` for two kinds of speech:
+live dictation inside a task, and recorded voice notes in its assistant.
+
+We wanted to add tasks without typing, but we did not want every spoken thought
+to pass through a cloud service especially that open-models do the job at minimal
+size. A task can name a client or an unannounced
+plan, and a voice note can carry the same. The recognizer had to run on the
+device, keep working in a PWA after the network is gone, and stay small enough
+that a phone download is reasonable. DoListy is where the package got its
+first daily use.
+
+### What it does
+
+- Adds text to an open task by voice. The microphone sits in the task editor,
+  partial text appears while the user speaks, and pause, resume, cancel and
+  done stay in reach.
+- Keeps the text already typed. A dictation appends to it, and a cancel
+  restores the original task instead of clearing it.
+- Transcribes recorded voice notes in the assistant. A clip can run up to 30
+  seconds, plays back with a waveform and its duration, and turns into text
+  before the prompt is assembled.
+- Uses the app language for task dictation and automatic language detection
+  for voice notes, so a clip in another language still transcribes.
+- Works after the first model download with the network off, which matches the
+  rest of the PWA.
+
+### What it costs
+
+- No per-minute bill, API key, or speech service. The speech download is
+  the Whisper base checkpoint, 151 MB at the default F16 quality and 59 MB at
+  `Quality.Low`.
+- The download lands in IndexedDB and survives a reload. An interrupted
+  download resumes from the stored chunks.
+- Recognition is local, so it competes with the page for CPU. The dictation
+  controller owns the worker, the page stays responsive during decode, and the
+  app shows model progress before the first transcript.
+- An 11 second English clip takes about 6 seconds on a 3.1 GHz eight-thread i7
+  with four threads. A phone is slower, which is why the UI streams partial
+  text and commits at pauses.
+
+### How it is wired
+
+- One `createDictation` per task row, with the app language, live partial text
+  and a waveform from the frequency callback. Pause, resume, cancel and finish
+  map to the controller methods.
+- A voice note uses the same controller with a custom `capture` that feeds
+  already decoded 16 kHz mono PCM, so a recorded clip joins the same model and
+  worker as live dictation.
+- `onState` drives the progress row from model download to transcription, and
+  `onText(text, true)` commits the final text. A cancelled dictation emits an
+  empty final text, which restores the task text.
+- One worker serves every controller. Starting a new dictation cancels the
+  active one, and the model stays resident for the next task or clip.
+- The assistant sends the stored clip through transcription before the prompt.
+  The transcript is saved with the message and reused, not recomputed.
+
+**See it work:** open [dolisty.com](https://dolisty.com) on a phone, let the
+model download once, then dictate a task or send a voice note with the network
+off. The [quick start](#quick-start) and
+[dictation controller](#dictation-controller) sections show the same flow in
+code.
 
 ## Dictation controller
 

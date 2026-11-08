@@ -1,6 +1,6 @@
 // Greedy CTC decoding.
-import { argmax } from "../../tensor/kernels";
-import type { CtcDecodeOptions, CtcDecodeResult } from "../../tensor/types";
+import { argmax } from "../../tensor/kernel/kernels";
+import type { CtcDecodeOptions, CtcDecodeResult } from "../../tensor/core/types";
 
 /** Decode one frame by frame argmax stream. */
 const decodeCtc = (options: CtcDecodeOptions): CtcDecodeResult => {

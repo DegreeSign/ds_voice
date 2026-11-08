@@ -1,4 +1,4 @@
-import type { SenseVoiceEncodeOptions, SenseVoiceEncodeResult, SenseVoiceLogitsOptions } from "../../tensor/types";
+import type { SenseVoiceEncodeOptions, SenseVoiceEncodeResult, SenseVoiceLogitsOptions } from "../../tensor/core/types";
 declare const 
 /** Encode prefixes plus features into hidden states. */
 encodeSenseVoice: (options: SenseVoiceEncodeOptions) => SenseVoiceEncodeResult, 

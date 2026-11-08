@@ -1,4 +1,4 @@
-// Rebuild the embedded SIMD kernels from src/tensor/kernels.c.
+// Rebuild the embedded SIMD kernels from src/tensor/kernel/kernels.c.
 // Usage: node scripts/build-kernels.cjs
 const
     { execFileSync } = require("node:child_process"),
@@ -6,8 +6,8 @@ const
     { tmpdir } = require("node:os"),
     path = require("node:path"),
     root = path.resolve(__dirname, ".."),
-    source = path.join(root, "src", "tensor", "kernels.c"),
-    target = path.join(root, "src", "tensor", "kernelsWasm.ts"),
+    source = path.join(root, "src", "tensor", "kernel", "kernels.c"),
+    target = path.join(root, "src", "tensor", "kernel", "kernelsWasm.ts"),
     EXPORTS = [
         "matmul",
         "attention",

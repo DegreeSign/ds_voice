@@ -14,16 +14,16 @@ module.exports = {
     resolve: { extensions: [".ts", ".js"] },
     plugins: [
         new webpack.NormalModuleReplacementPlugin(
-            /^\.\/node$/,
-            path.resolve(__dirname, "../../src/store/nodeStub.ts"),
+            /^\.\.\/node\/node$/,
+            path.resolve(__dirname, "../../src/platform/node/nodeStub.ts"),
         ),
         new webpack.NormalModuleReplacementPlugin(
-            /^\.\/nodeFile$/,
-            path.resolve(__dirname, "../../src/audio/nodeFileStub.ts"),
+            /^\.\.\/\.\.\/platform\/node\/nodeFile$/,
+            path.resolve(__dirname, "../../src/platform/browser/nodeFileStub.ts"),
         ),
         new webpack.NormalModuleReplacementPlugin(
-            /^\.\/poolNode$/,
-            path.resolve(__dirname, "../../src/tensor/poolBrowser.ts"),
+            /^\.\.\/\.\.\/platform\/node\/poolNode$/,
+            path.resolve(__dirname, "../../src/platform/browser/poolBrowser.ts"),
         ),
     ],
     module: {

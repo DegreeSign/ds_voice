@@ -1,5 +1,5 @@
-import { Language } from "../../tensor/types";
-import type { CapturePair, DecoderState, LoadedModel, StepResult } from "../../tensor/types";
+import { Language } from "../../tensor/core/types";
+import type { CapturePair, DecoderState, LoadedModel, StepResult } from "../../tensor/core/types";
 declare const 
 /** Create decoder state and precompute cross keys and values. */
 createDecoderState: (options: {

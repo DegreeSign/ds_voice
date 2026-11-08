@@ -5,7 +5,7 @@ import {
     parseSafetensorsJson,
     product,
     readF16,
-} from "../../src/tensor/binary";
+} from "../../src/tensor/core/binary";
 import {
     addArrays,
     addInPlace,
@@ -18,15 +18,15 @@ import {
     reluInPlace,
     siluInPlace,
     softmaxRow,
-} from "../../src/tensor/kernels";
-import { nextPow2, reflect } from "../../src/tensor/math";
+} from "../../src/tensor/kernel/kernels";
+import { nextPow2, reflect } from "../../src/tensor/core/math";
 import {
     buildFftPlan,
     computeMel,
     melEnergies,
     powerSpectrum,
-} from "../../src/speech/mel";
-import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../src/speech/segment";
+} from "../../src/speech/session/mel";
+import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../src/speech/session/segment";
 import {
     CHECKPOINT_IDS,
     DEFAULT_MODEL,
@@ -38,25 +38,25 @@ import {
     checkpointKey,
     resolveSpec,
     weightFiles,
-} from "../../src/models/specs";
-import { ModelFamily, ModelId } from "../../src/tensor/types";
-import { parseGguf } from "../../src/formats/gguf";
+} from "../../src/models/configs/specs";
+import { ModelFamily, ModelId } from "../../src/tensor/core/types";
+import { parseGguf } from "../../src/models/formats/gguf";
 import {
     assertWhisperShape,
     parseSafetensors,
-} from "../../src/formats/safetensors";
+} from "../../src/models/formats/safetensors";
 import {
     readSenseVoiceConfig,
     readSenseVoiceFrontend,
-} from "../../src/models/sensevoice/config";
+} from "../../src/models/configs/sensevoice";
 import { decodeCtc } from "../../src/models/sensevoice/ctc";
 import {
     encodeSenseVoice,
     senseVoiceLogits,
 } from "../../src/models/sensevoice/encoder";
 import { computeSenseVoiceFeatures } from "../../src/models/sensevoice/fbank";
-import { createSenseVoiceVocabulary } from "../../src/models/sensevoice/tokenizer";
-import { createGgufWeights } from "../../src/models/sensevoice/weights";
+import { createSenseVoiceVocabulary } from "../../src/models/vocab/sensevoice";
+import { createGgufWeights } from "../../src/models/weights/sensevoice";
 import {
     loadSenseVoice,
     transcribeSenseVoice,
@@ -69,18 +69,18 @@ import {
     toMelConfig,
     toMelFilters,
     toModelConfig,
-} from "../../src/models/whisper/config";
+} from "../../src/models/configs/whisper";
 import {
     createDecoderState,
     decoderStep,
     detectLanguage,
 } from "../../src/models/whisper/decoder";
-import { computeDtw } from "../../src/models/whisper/dtw";
+import { computeDtw } from "../../src/models/text/dtw";
 import { encode } from "../../src/models/whisper/encoder";
 import { generate } from "../../src/models/whisper/generate";
-import { loadTokenizer } from "../../src/models/whisper/tokenizer";
+import { loadTokenizer } from "../../src/models/vocab/whisper";
 import { loadWhisper, transcribeWhisper } from "../../src/models/whisper/model";
-import { buildSegments, buildWords } from "../../src/models/whisper/words";
+import { buildSegments, buildWords } from "../../src/models/text/words";
 import {
     CHUNK_BYTES,
     chunkedExists,
@@ -90,28 +90,28 @@ import {
     readChunks,
     removeChunks,
     writeChunkStream,
-} from "../../src/store/chunk";
-import { createBrowserStore } from "../../src/store/browser";
+} from "../../src/platform/store/chunk";
+import { createBrowserStore } from "../../src/platform/browser/browser";
 import {
     deleteModel,
     isCheckpointCached,
     prepareModel,
-} from "../../src/store/download";
+} from "../../src/platform/store/download";
 import {
     DEFAULT_DISK_SPACE_MB,
     ensureSpace,
     forgetModel,
     readUsage,
     touchModel,
-} from "../../src/store/usage";
-import { getStore } from "../../src/store/index";
-import { detectPlatform, hasMicrophone } from "../../src/speech/env";
-import { decodeBytes, decodeSource } from "../../src/audio/file";
-import { decodeFlac } from "../../src/audio/flac";
-import { decodeMp3 } from "../../src/audio/mp3";
-import { decodeWav } from "../../src/audio/wav";
-import { downmix, resampleAudio } from "../../src/audio/resample";
-import { padCenter, padWindow } from "../../src/audio/pad";
+} from "../../src/platform/store/usage";
+import { getStore } from "../../src/platform/store/index";
+import { detectPlatform, hasMicrophone } from "../../src/speech/session/env";
+import { decodeBytes, decodeSource } from "../../src/audio/input/file";
+import { decodeFlac } from "../../src/audio/codec/flac";
+import { decodeMp3 } from "../../src/audio/codec/mp3";
+import { decodeWav } from "../../src/audio/codec/wav";
+import { downmix, resampleAudio } from "../../src/audio/input/resample";
+import { padCenter, padWindow } from "../../src/audio/input/pad";
 import {
     Language,
     Platform,
@@ -119,42 +119,42 @@ import {
     Quality,
     ThreadCount,
     TimestampMode,
-} from "../../src/tensor/types";
-import { createVoice, getVoice } from "../../src/speech/voice";
+} from "../../src/tensor/core/types";
+import { createVoice, getVoice } from "../../src/speech/core/voice";
 import {
     createVoice as createSenseVoiceVoice,
-} from "../../src/speech/senseVoice";
+} from "../../src/speech/bundle/senseVoice";
 import {
     createVoice as createWhisperVoice,
-} from "../../src/speech/whisper";
-import { createSession } from "../../src/speech/session";
-import { captureMicrophone } from "../../src/audio/mic";
+} from "../../src/speech/bundle/whisper";
+import { createSession } from "../../src/speech/session/session";
+import { captureMicrophone } from "../../src/audio/input/mic";
 import {
     getKernel,
     kernelThreads,
     releaseTensor,
     setThreadCount,
-} from "../../src/tensor/wasm";
+} from "../../src/tensor/kernel/wasm";
 import {
     createPool as createBrowserPool,
     createPoolAsync as createBrowserPoolAsync,
     createSharedMemory as createBrowserSharedMemory,
-} from "../../src/tensor/poolBrowser";
+} from "../../src/platform/browser/poolBrowser";
 import {
     createPool as createStubPool,
     createSharedMemory as createStubSharedMemory,
-} from "../../src/tensor/poolStub";
+} from "../../src/platform/browser/poolStub";
 import {
     createWhisperWeights,
     mapName,
-} from "../../src/models/whisper/weights";
+} from "../../src/models/weights/whisper";
 import {
     GGUF_CACHE_BYTES,
     GGUF_CACHE_CAP_BYTES,
     fullCacheBytes,
     ggmlTypeName,
     readGgufTensor,
-} from "../../src/formats/ggufTensor";
+} from "../../src/models/formats/ggufTensor";
 import { TINY_FLAC, TINY_MP3 } from "./fixtures";
 import { writeWav16 } from "./wav";
 import * as entry from "../../src/index";
@@ -163,17 +163,17 @@ import {
     DictationErrorSource,
     DictationState,
     isDictationSupported,
-} from "../../src/dictation";
-import { serveDictation } from "../../src/dictation/worker";
+} from "../../src/speech/dictation";
+import { serveDictation } from "../../src/speech/worker/worker";
 import {
     DictationMessageType,
     DictationRequestType,
-} from "../../src/dictation/types";
+} from "../../src/speech/dictation/types";
 import type {
     DictationCapture,
     DictationMessage,
     DictationRequest,
-} from "../../src/dictation/types";
+} from "../../src/speech/dictation/types";
 import type {
     Constants,
     DownloadProgress,
@@ -197,7 +197,7 @@ import type {
     Tokenizer,
     Transcript,
     Voice,
-} from "../../src/tensor/types";
+} from "../../src/tensor/core/types";
 
 /** One recorded test outcome. */
 interface TestOutcome {

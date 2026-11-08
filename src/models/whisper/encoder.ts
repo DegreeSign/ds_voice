@@ -5,9 +5,9 @@ import {
     geluInPlace,
     layerNorm,
     linear,
-} from "../../tensor/kernels";
-import { wasmConv1d } from "../../tensor/wasm";
-import type { EncodeOptions, EncodeResult } from "../../tensor/types";
+} from "../../tensor/kernel/kernels";
+import { wasmConv1d } from "../../tensor/kernel/wasm";
+import type { EncodeOptions, EncodeResult } from "../../tensor/core/types";
 const
     /** One dimensional convolution with padding. */
     conv1dJs = (options: {

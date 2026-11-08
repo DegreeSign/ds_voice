@@ -1,11 +1,11 @@
 // SenseVoice kaldi fbank features.
 // Mirrors funasr wav frontend.
-import { buildFftPlan, melEnergies, powerSpectrum } from "../../speech/mel";
-import { nextPow2 } from "../../tensor/math";
+import { buildFftPlan, melEnergies, powerSpectrum } from "../../speech/session/mel";
+import { nextPow2 } from "../../tensor/core/math";
 import type {
     SenseVoiceFeatureOptions,
     SenseVoiceFeatureResult,
-} from "../../tensor/types";
+} from "../../tensor/core/types";
 const
     /** Kaldi default preemphasis coefficient. */
     PREEMPHASIS = 0.97,

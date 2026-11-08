@@ -1,21 +1,21 @@
 // SenseVoice model loading.
-import { parseGguf } from "../../formats/gguf";
-import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../speech/segment";
-import { padWindow } from "../../audio/pad";
+import { parseGguf } from "../formats/gguf";
+import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../speech/session/segment";
+import { padWindow } from "../../audio/input/pad";
 import { decodeCtc } from "./ctc";
-import { readSenseVoiceConfig, readSenseVoiceFrontend } from "./config";
+import { readSenseVoiceConfig, readSenseVoiceFrontend } from "../configs/sensevoice";
 import { computeSenseVoiceFeatures } from "./fbank";
 import { encodeSenseVoice, senseVoiceLogits } from "./encoder";
-import { createSenseVoiceVocabulary } from "./tokenizer";
-import { createGgufWeights } from "./weights";
-import { checkpointKey } from "../specs";
-import { kernelThreads } from "../../tensor/wasm";
-import { Language, ModelFamily } from "../../tensor/types";
+import { createSenseVoiceVocabulary } from "../vocab/sensevoice";
+import { createGgufWeights } from "../weights/sensevoice";
+import { checkpointKey } from "../configs/specs";
+import { kernelThreads } from "../../tensor/kernel/wasm";
+import { Language, ModelFamily } from "../../tensor/core/types";
 import type {
     LoadedSenseVoice,
     LoadSenseVoiceOptions,
     Transcript,
-} from "../../tensor/types";
+} from "../../tensor/core/types";
 const
     /** Blank token id, shared with the unknown token. */
     BLANK_ID = 0,

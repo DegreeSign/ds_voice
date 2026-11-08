@@ -3,7 +3,7 @@ import {
     getKernel,
     prepareThreads,
     wasmLinear,
-} from "../../src/tensor/wasm";
+} from "../../src/tensor/kernel/wasm";
 const
     /** Run one pooled matmul and report the pool size. */
     run = async (): Promise<{

@@ -1,5 +1,5 @@
-import { Language, TimestampMode } from "../../tensor/types";
-import type { LoadedModel, StoreModelOptions, Transcript } from "../../tensor/types";
+import { Language, TimestampMode } from "../../tensor/core/types";
+import type { LoadedModel, StoreModelOptions, Transcript } from "../../tensor/core/types";
 declare const 
 /** Load a Whisper model from a store. */
 loadWhisper: (options: StoreModelOptions) => Promise<LoadedModel>, 

@@ -1,12 +1,12 @@
 // Greedy Whisper generation.
 // Ported from transformers 4.44.0.
-import { argmax } from "../../tensor/kernels";
+import { argmax } from "../../tensor/kernel/kernels";
 import { createDecoderState, decoderStep } from "./decoder";
 import type {
     GenerateOptions,
     GenerateOutput,
     LoadedModel,
-} from "../../tensor/types";
+} from "../../tensor/core/types";
 const
     /** Apply the suppression lists and the timestamp rules. */
     processLogits = (options: {

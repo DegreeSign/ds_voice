@@ -7,14 +7,14 @@ import {
     layerNorm,
     linear,
     softmaxRow,
-} from "../../tensor/kernels";
-import { Language } from "../../tensor/types";
+} from "../../tensor/kernel/kernels";
+import { Language } from "../../tensor/core/types";
 import type {
     CapturePair,
     DecoderState,
     LoadedModel,
     StepResult,
-} from "../../tensor/types";
+} from "../../tensor/core/types";
 const
     /** Create decoder state and precompute cross keys and values. */
     createDecoderState = (options: {

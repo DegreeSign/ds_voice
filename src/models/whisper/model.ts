@@ -7,22 +7,22 @@ import {
     toMelConfig,
     toMelFilters,
     toModelConfig,
-} from "./config";
-import { loadTokenizer } from "./tokenizer";
-import { computeMel } from "../../speech/mel";
+} from "../configs/whisper";
+import { loadTokenizer } from "../vocab/whisper";
+import { computeMel } from "../../speech/session/mel";
 import { encode } from "./encoder";
 import { createDecoderState, detectLanguage } from "./decoder";
 import { generate } from "./generate";
-import { computeDtw } from "./dtw";
-import { buildSegments, buildWords } from "./words";
-import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../speech/segment";
-import { padWindow } from "../../audio/pad";
-import { assertWhisperShape, parseSafetensors } from "../../formats/safetensors";
-import { parseGguf } from "../../formats/gguf";
-import { createWhisperWeights } from "./weights";
-import { kernelThreads } from "../../tensor/wasm";
-import { checkpointKey } from "../specs";
-import { Language, ModelFamily, TimestampMode } from "../../tensor/types";
+import { computeDtw } from "../text/dtw";
+import { buildSegments, buildWords } from "../text/words";
+import { dedupeBoundary, hasSignal, joinText, planChunks } from "../../speech/session/segment";
+import { padWindow } from "../../audio/input/pad";
+import { assertWhisperShape, parseSafetensors } from "../formats/safetensors";
+import { parseGguf } from "../formats/gguf";
+import { createWhisperWeights } from "../weights/whisper";
+import { kernelThreads } from "../../tensor/kernel/wasm";
+import { checkpointKey } from "../configs/specs";
+import { Language, ModelFamily, TimestampMode } from "../../tensor/core/types";
 import type {
     CapturePair,
     LoadedModel,
@@ -33,7 +33,7 @@ import type {
     WhisperWindowOptions,
     WindowResult,
     Word,
-} from "../../tensor/types";
+} from "../../tensor/core/types";
 const
     /** Load a Whisper model from a store. */
     loadWhisper = async (
