@@ -1,4 +1,4 @@
-// Static server for the manual recorder page.
+// Static server for the manual recorder and demo pages.
 // Usage: node test/example/serve.cjs [port]
 const http = require("http");
 const fs = require("fs");
@@ -23,7 +23,7 @@ const
             if (url === "/" || url === "/voice") {
                 response.writeHead(302, {
                     location: url === "/voice"
-                        ? "/test/example/voice.html"
+                        ? "/docs/demo.html"
                         : "/test/example/record.html",
                 });
                 response.end();
@@ -49,7 +49,7 @@ const
                 `Recorder page: http://127.0.0.1:${PORT}/test/example/record.html`,
             );
             console.log(
-                `Voice page: http://127.0.0.1:${PORT}/test/example/voice.html`,
+                `Voice demo: http://127.0.0.1:${PORT}/docs/demo.html`,
             );
         });
         server.on("error", (error) => {

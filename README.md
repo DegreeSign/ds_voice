@@ -18,6 +18,7 @@ dependencies.
 - [Dictation controller](#dictation-controller)
 - [Public API](#public-api)
 - [Voice library](#voice-library)
+- [Demo](#demo)
 - [Models](#models)
 - [Audio input](#audio-input)
 - [Disk budget](#disk-budget)
@@ -70,6 +71,9 @@ Build from source with `yarn build`; typecheck with `yarn typecheck`.
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@degreesign/voice/dist/browser/degreesign.min.js"></script>
 ```
+
+Try the [live voice demo](https://degreesign.github.io/ds_voice/demo.html)
+before installing.
 
 ## Quick start
 
@@ -363,12 +367,17 @@ default to zero and one. The MOSS engine covers `male` and `female`. The
 parsed weights stay resident until another voice replaces them, so repeated
 calls for one voice skip the store reads and tensor parsing.
 
-### Voice tuning page
+### Demo
 
-`test/example/voice.html` is a small page with one text box, a voice picker,
-a progress bar and pitch, rate, gain, temperature and seed sliders. Run
-`yarn build` and `node test/example/serve.cjs`, then open
-`http://127.0.0.1:17544/test/example/voice.html`.
+Open the [voice demo](https://degreesign.github.io/ds_voice/demo.html) to try
+the published package in a browser before installing it. The page loads
+`@degreesign/voice` from jsDelivr and has one text box, a voice picker, a
+progress bar and pitch, rate, gain, temperature and seed sliders. The first run
+downloads the selected voice and keeps it cached.
+
+The demo source is [docs/demo.html](docs/demo.html). Run
+`node test/example/serve.cjs`, then open
+`http://127.0.0.1:17544/docs/demo.html` to serve it locally.
 
 `prepareVoice({ voice })` performs the same download and parse without
 synthesizing. Call it when a voice is picked or speech is enabled, then

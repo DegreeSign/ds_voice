@@ -1,4 +1,4 @@
-// Manual voice tuning page.
+// CDN voice demo page.
 const
     engine = window.dsVoice,
     voiceSelect = document.getElementById("voice"),
