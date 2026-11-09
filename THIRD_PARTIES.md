@@ -74,6 +74,15 @@ License. See [LICENSE](LICENSE).
 - Contents: the `tokenizer.json` conversion of the SentencePiece tokenizer used
   by the `male` and `female` voices.
 
+### MOSS-Audio-Tokenizer-Nano encoder
+
+- License: Apache License 2.0
+- Sources: https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano,
+  https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX and
+  https://huggingface.co/Luigi/MOSS-TTS-Nano-100M-GGUF
+- Contents: the encoder weights of MOSS-Audio-Tokenizer-Nano served from the
+  ONNX bundle and used by `cloneVoice` to encode a microphone reference.
+
 ### Bundled MOSS reference codes
 
 - License: Apache License 2.0

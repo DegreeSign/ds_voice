@@ -762,6 +762,7 @@ const synthesizeMoss = async (options: {
     voice: VoiceId;
     text: string;
     load: (file: string) => Promise<Uint8Array>;
+    reference?: Uint16Array;
     maxFrames?: number;
     seed?: number;
     temperature?: number;
@@ -776,7 +777,7 @@ const synthesizeMoss = async (options: {
             tokenizer: loaded.tokenizer,
             text: options.text,
             maxFrames: options.maxFrames ?? MAX_FRAMES,
-            reference: referenceFor(options.voice),
+            reference: options.reference ?? referenceFor(options.voice),
             seed: options.seed,
             temperature: options.temperature,
         }),

@@ -10,10 +10,15 @@ const
     sttStatus = document.getElementById("stt_status"),
     voiceSelect = document.getElementById("voice"),
     textInput = document.getElementById("text"),
+    useClone = document.getElementById("use_clone"),
     speakButton = document.getElementById("speak"),
     progress = document.getElementById("progress"),
     status = document.getElementById("status"),
     playback = document.getElementById("playback"),
+    recordCloneButton = document.getElementById("record_clone"),
+    clearCloneButton = document.getElementById("clear_clone"),
+    cloneProgress = document.getElementById("clone_progress"),
+    cloneStatus = document.getElementById("clone_status"),
     SLIDERS = [
         { input: "pitch", output: "pitch_value", digits: 1 },
         { input: "rate", output: "rate_value", digits: 2 },
@@ -37,6 +42,7 @@ let
     lastProgressAt = 0,
     synthesizing = false,
     session = null,
+    cloned = null,
     poll = 0;
 
 /** Stop the live transcript poll. */
@@ -254,6 +260,59 @@ const play = (audio) => {
     void playback.play().catch(() => undefined);
 };
 
+/** Set the clone controls for one busy state. */
+const setCloneBusy = (busy) => {
+    recordCloneButton.disabled = busy;
+    clearCloneButton.disabled = busy || !cloned;
+};
+
+/** Record a reference and keep its codes for synthesis. */
+const recordClone = async () => {
+    if (!engine?.cloneVoice) {
+        cloneStatus.textContent = "The voice bundle has no cloning support.";
+        return;
+    }
+    setCloneBusy(true);
+    cloneProgress.value = 0;
+    cloneStatus.textContent = "Recording 3 s from the microphone...";
+    try {
+        cloned = await engine.cloneVoice({
+            durationMs: 3000,
+            onProgress: (update) => {
+                const name = update.file || "encoder";
+                cloneProgress.value = Math.round(update.ratio * 100);
+                cloneStatus.textContent =
+                    `${update.phase} ${name} ${cloneProgress.value}%`;
+            },
+        });
+        useClone.checked = true;
+        useClone.disabled = false;
+        cloneProgress.value = 100;
+        cloneStatus.textContent =
+            `Reference ready. ${cloned.frames} frames.`;
+    } catch (error) {
+        const reason = error?.message ?? error;
+        useClone.checked = cloned !== null;
+        useClone.disabled = cloned === null;
+        cloneProgress.value = 0;
+        cloneStatus.textContent = cloned
+            ? `Failed: ${reason}. Previous reference kept.`
+            : `Failed: ${reason}`;
+    } finally {
+        setCloneBusy(false);
+    }
+};
+
+/** Drop the recorded reference. */
+const clearClone = () => {
+    cloned = null;
+    useClone.checked = false;
+    useClone.disabled = true;
+    cloneProgress.value = 0;
+    cloneStatus.textContent = "No reference recorded.";
+    clearCloneButton.disabled = true;
+};
+
 /** Render the current text with the current controls. */
 const speak = async () => {
     const text = textInput.value.trim();
@@ -281,10 +340,12 @@ const speak = async () => {
             status.textContent = `Synthesizing... ${seconds} s`;
         }
     }, 500);
+    const reference = useClone.checked ? cloned?.codes : undefined;
     try {
         const audio = await engine.synthesize({
             voice: voiceSelect.value,
             text,
+            reference,
             pitch: readNumber("pitch"),
             rate: readNumber("rate"),
             gain: readNumber("gain"),
@@ -317,6 +378,7 @@ const speak = async () => {
 if (!engine) {
     sttStatus.textContent = "The speech bundle did not load.";
     status.textContent = "The voice bundle did not load.";
+    cloneStatus.textContent = "The voice bundle did not load.";
 }
 fillVoices();
 applyDefaults(voiceSelect.value);
@@ -331,5 +393,7 @@ voiceSelect.addEventListener("change", () => {
 listenButton.addEventListener("click", startListening);
 stopButton.addEventListener("click", stopTranscription);
 transcribeFileButton.addEventListener("click", startFile);
+recordCloneButton.addEventListener("click", () => void recordClone());
+clearCloneButton.addEventListener("click", clearClone);
 speakButton.addEventListener("click", () => void speak());
 updateControls();

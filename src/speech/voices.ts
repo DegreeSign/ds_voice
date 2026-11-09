@@ -1,6 +1,6 @@
 // The bundled voice library. One Apache-2.0 model per voice.
 import { VoiceFamily, VoiceGender, VoiceId } from "./types";
-import type { VoiceSpec } from "./types";
+import type { VoiceFile, VoiceSpec } from "./types";
 const
     /** Fixed line rendered for every preview clip. */
     PREVIEW = "Hi, this is a voice preview. Ha ha ha!",
@@ -9,6 +9,15 @@ const
     /** Primary model repository of each voice. */
     MOSS_GGUF = "Luigi/MOSS-TTS-Nano-100M-GGUF",
     MOSS_TOKENIZER = "aoiandroid/moss-tts-nano-onnx-fp32",
+    /** Encoder data used only by voice cloning. */
+    CLONE_FILES: VoiceFile[] = [
+        {
+            repo: MOSS_GGUF,
+            file: "MOSS-Audio-Tokenizer-Nano-ONNX/" +
+                "moss_audio_tokenizer_encode.data",
+            bytes: 44_507_136,
+        },
+    ],
     /** Every voice in the library. */
     VOICES: Record<VoiceId, VoiceSpec> = {
         [VoiceId.Male]: {
@@ -84,4 +93,4 @@ const
         return spec;
     };
 
-export { PREVIEW, PREVIEW_RATE, VOICES, listVoices, getVoiceSpec };
+export { PREVIEW, PREVIEW_RATE, VOICES, CLONE_FILES, listVoices, getVoiceSpec };

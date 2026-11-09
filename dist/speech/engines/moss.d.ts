@@ -10,6 +10,7 @@ declare const synthesizeMoss: (options: {
     voice: VoiceId;
     text: string;
     load: (file: string) => Promise<Uint8Array>;
+    reference?: Uint16Array;
     maxFrames?: number;
     seed?: number;
     temperature?: number;

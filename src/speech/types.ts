@@ -94,10 +94,50 @@ export interface LoadVoiceOptions {
     onProgress?: (progress: VoiceDownloadProgress) => void;
 }
 
+/** Progress of the lazy clone codec download. */
+export interface VoiceCloneProgress {
+    /** File currently in flight. */
+    file: string;
+    /** Bytes received across every file. */
+    loaded: number;
+    /** Expected bytes across every file. */
+    total: number;
+    /** Fraction of the total, zero when unknown. */
+    ratio: number;
+    /** Step of the load. */
+    phase: ProgressPhase;
+}
+
+/** Options for recording a voice clone reference. */
+export interface CloneVoiceOptions {
+    /** Mono PCM at `sampleRate`, skips the microphone. */
+    pcm?: Float32Array;
+    /** Sample rate of `pcm`, defaults to 48000. */
+    sampleRate?: number;
+    /** Microphone duration in milliseconds, defaults to 3000. */
+    durationMs?: number;
+    /** Override for the Hugging Face host. */
+    weightsBaseUrl?: string;
+    /** Called as the clone codec advances. */
+    onProgress?: (progress: VoiceCloneProgress) => void;
+}
+
+/** Reference codes captured from one recording. */
+export interface VoiceClone {
+    /** 16 codebook codes per frame, frame major. */
+    codes: Uint16Array;
+    /** Number of code frames. */
+    frames: number;
+    /** Native codec rate, 48000. */
+    sampleRate: number;
+}
+
 /** Options for synthesizing text with one voice. */
 export interface SynthesizeVoiceOptions extends LoadVoiceOptions {
     /** Text to speak. */
     text: string;
+    /** Reference codes from cloneVoice, overrides the bundled voice. */
+    reference?: Uint16Array;
     /** Pitch shift in semitones, zero keeps the source voice. */
     pitch?: number;
     /** Speaking rate multiplier, one keeps the source timing. */

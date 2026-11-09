@@ -17,6 +17,7 @@ setup.
 - [Quick start](#quick-start)
 - [Speech to text](#speech-to-text)
 - [Text to speech](#text-to-speech)
+- [Voice cloning](#voice-cloning)
 - [Dictation](#dictation)
 - [Demo](#demo)
 - [Models](#models)
@@ -280,6 +281,38 @@ Pitch and rate apply after synthesis for every voice. The MOSS voices also
 accept `seed` and `temperature`. Gain defaults to two, pitch to zero and rate
 to one. The parsed weights stay resident until another voice replaces them.
 
+## Voice cloning
+
+`cloneVoice` records the browser microphone for three seconds and encodes the
+recording with the MOSS audio tokenizer. The first call downloads the 45 MB
+encoder, then keeps it resident.
+
+```ts
+import { cloneVoice, synthesize, VoiceId } from "@degreesign/voice";
+
+const clone = await cloneVoice({ durationMs: 3000 });
+const audio = await synthesize({
+    voice: VoiceId.Female,
+    text: "This is the recorded voice.",
+    reference: clone.codes,
+});
+```
+
+A `VoiceClone` holds `codes`, the frame count and the native 48 kHz rate. Store
+the codes on the page to reuse the same voice without recording again:
+
+```ts
+const audio = await synthesize({
+    voice: VoiceId.Male,
+    text: "The stored reference still speaks.",
+    reference: clone.codes,
+});
+```
+
+Pass `pcm` with `sampleRate` to encode a recording you already have. The
+encoder resamples to 48 kHz and keeps at most four seconds. A reference shorter
+than one second is rejected. `onProgress` follows the encoder download.
+
 ## Dictation
 
 `@degreesign/voice/dictation` is a headless controller for live microphone
@@ -339,6 +372,7 @@ from jsDelivr and lets you:
 
 - Record from the microphone or pick an audio file and read the transcript.
 - Pick a voice, tune pitch, rate, gain, temperature and seed, then listen.
+- Record a reference and speak the text with the cloned voice.
 
 The demo for speech to text uses `Quality.Low`, a 59 MB download. The demo
 source is [docs/demo.html](docs/demo.html). Run

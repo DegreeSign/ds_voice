@@ -58,6 +58,7 @@ const
             voice: spec.id,
             text: options.text,
             load,
+            reference: options.reference,
             seed: options.seed,
             temperature: options.temperature,
         });

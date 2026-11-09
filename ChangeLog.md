@@ -3,6 +3,14 @@
 All notable changes to `@degreesign/voice` are recorded here. This project
 follows semantic versioning.
 
+## 2.4.0
+
+### Added
+
+- `cloneVoice` records a microphone reference and returns MOSS audio codes.
+- `SynthesizeVoiceOptions.reference` renders text with recorded codes.
+- `CloneVoiceOptions`, `VoiceClone` and `VoiceCloneProgress` types.
+
 ## 2.3.0
 
 ### Removed

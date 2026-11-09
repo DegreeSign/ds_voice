@@ -35,6 +35,7 @@ export {
     loadVoice,
     prepareVoice,
     synthesize,
+    cloneVoice,
     isVoiceCached,
     removeVoice,
     PREVIEW,
@@ -44,9 +45,12 @@ export {
     VoiceId,
 } from "./speech";
 export type {
+    CloneVoiceOptions,
     LoadVoiceOptions,
     SynthesizeVoiceOptions,
     VoiceAudio,
+    VoiceClone,
+    VoiceCloneProgress,
     VoiceDownloadProgress,
     VoiceFile,
     VoiceSample,

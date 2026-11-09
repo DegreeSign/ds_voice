@@ -49,6 +49,15 @@ import {
 import { createMossTokenizer } from "../../src/speech/engines/mossTokenizer";
 import { decodeMossAudio, loadMossCodec } from "../../src/speech/engines/mossCodec";
 import {
+    encodeMossAudio,
+    loadMossEncoder,
+} from "../../src/speech/engines/mossEncoder";
+import type {
+    MossEncoder,
+    MossEncoderLayer,
+    MossEncoderStage,
+} from "../../src/speech/engines/mossEncoder";
+import {
     MOSS_FEMALE_REFERENCE,
     MOSS_MALE_REFERENCE,
 } from "../../src/speech/engines/mossReference";
@@ -172,6 +181,12 @@ import {
     prepareVoice,
     removeVoice,
     synthesize,
+    cloneVoice,
+} from "../../src/index";
+import type {
+    CloneVoiceOptions,
+    VoiceClone,
+    VoiceCloneProgress,
 } from "../../src/index";
 import {
     DictationMessageType,
@@ -990,6 +1005,60 @@ const
 
 /** Every test, each deferred behind a function. */
 const
+    /** Build a zero encoder with the production shapes. */
+    zeroEncoder = (options: { layers: boolean }): MossEncoder => {
+        const
+            zeros = (size: number): Float32Array => new Float32Array(size),
+            layer = (): MossEncoderLayer => ({
+                norm1Weight: zeros(256),
+                norm1Bias: zeros(256),
+                norm2Weight: zeros(256),
+                norm2Bias: zeros(256),
+                scale1: zeros(256),
+                scale2: zeros(256),
+                qkv: zeros(768 * 256),
+                out: zeros(256 * 256),
+                up: zeros(1024 * 256),
+                down: zeros(256 * 1024),
+            }),
+            stage = (
+                inputDim: number,
+                outputDim: number,
+                context: number,
+                layers: MossEncoderLayer[],
+            ): MossEncoderStage => ({
+                inputDim,
+                outputDim,
+                context,
+                input: zeros(256 * inputDim),
+                output: zeros(outputDim * 256),
+                layers,
+            }),
+            stages: MossEncoderStage[] = [
+                stage(240, 384, 1600, options.layers ? [layer()] : []),
+                stage(768, 384, 1200, []),
+                stage(768, 384, 800, []),
+                stage(768, 192, 500, []),
+            ],
+            quantizers: MossEncoder["quantizers"] = [];
+        for (let index = 0; index < 16; index += 1) {
+            const last = index + 1 === 16;
+            quantizers.push({
+                inWeight: zeros(8 * 512),
+                inBias: zeros(8),
+                codebook: zeros(1024 * 8),
+                outWeight: last ? undefined : zeros(512 * 8),
+                outBias: last ? undefined : zeros(512),
+            });
+        }
+        return {
+            input: zeros(256 * 240),
+            stages,
+            quantizerInput: zeros(512 * 768),
+            quantizerBias: zeros(512),
+            quantizers,
+        };
+    },
     /** Expected fields of every library voice. */
     TTS_VOICES: TtsVoiceExpectation[] = [
         {
@@ -3878,6 +3947,7 @@ const definitions: Array<{
                 assertEqual(entry.loadVoice, loadVoice, "one loader");
                 assertEqual(entry.prepareVoice, prepareVoice, "one prepare");
                 assertEqual(entry.synthesize, synthesize, "one synth");
+                assertEqual(entry.cloneVoice, cloneVoice, "one clone");
                 for (let i = 0; i < TTS_VOICES.length; i += 1) {
                     const
                         expected = TTS_VOICES[i],
@@ -4053,6 +4123,32 @@ const definitions: Array<{
             },
         },
         {
+            name: "speech/moss encoder",
+            run: () => {
+                assertThrows(
+                    () => loadMossEncoder(new Uint8Array(0)),
+                    "moss encoder too small",
+                );
+                const
+                    encoder = zeroEncoder({ layers: true }),
+                    codes = encodeMossAudio({
+                        encoder,
+                        pcm: new Float32Array(48000),
+                    });
+                assertEqual(codes.length, 12 * 16, "moss encoder codes");
+                for (const code of codes) {
+                    assertEqual(code, 0, "moss encoder code");
+                }
+                assertThrows(
+                    () => encodeMossAudio({
+                        encoder,
+                        pcm: new Float32Array(100),
+                    }),
+                    "moss encoder short",
+                );
+            },
+        },
+        {
             name: "speech/moss reference",
             run: () => {
                 assertEqual(
@@ -4171,6 +4267,17 @@ const definitions: Array<{
                             weightsBaseUrl: "data:",
                         }),
                     "invalid host",
+                );
+            },
+        },
+        {
+            name: "tts/cloneVoice rejects short reference",
+            run: async () => {
+                await assertRejects(
+                    async () => await cloneVoice({
+                        pcm: new Float32Array(100),
+                    }),
+                    "clone short",
                 );
             },
         },

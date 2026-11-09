@@ -15,6 +15,8 @@ Load `npm` skill of `@degreesign/skills` on start (probably already installed)
   `@degreesign/storage` are bundled at build time.
 - Put every interface and type in `src/types.ts`.
 - Pass an object parameter when a function takes more than one input.
+- Add every new major public function to `docs/demo.html` and `docs/demo.js`
+  in the same change.
 - Keep lines short, at most 100 columns.
 - Chain a run of adjacent `const` or `let` declarations into one
   statement: the keyword on its own line, each definition indented below
@@ -33,6 +35,7 @@ Load `npm` skill of `@degreesign/skills` on start (probably already installed)
   outside the measurement in the package and in the tests.
 - Verify with `yarn typecheck` and `yarn build`, capped at 60 seconds per run.
 - Never run release, publish or deploy commands.
+- Never delete the `build/` folder.
 - Node >= 24. The source is TypeScript built with webpack and `tsc`, imports
   have no file extension, and both bundles build from the shared entry
   `src/index.ts`.
@@ -57,7 +60,7 @@ Headless browser suite, for any runtime change:
 2. Bundle it: `npx webpack --config test/verify/webpack.config.cjs`.
 3. Run it: `node test/verify/drive.cjs "$PWD/build"`.
 4. The driver exits 0 only on `"fail": 0`.
-5. Delete `build/` after the run. Never commit build output.
+5. Leave `build/` in place after the run. Never commit build output.
 
 Harness rules:
 

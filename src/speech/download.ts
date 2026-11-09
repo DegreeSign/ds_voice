@@ -2,9 +2,10 @@
 import { getStore } from "../platform/store";
 import { HF_BASE } from "../models/configs/specs";
 import { ProgressPhase } from "../tensor/core/types";
-import { getVoiceSpec, listVoices } from "./voices";
+import { CLONE_FILES, getVoiceSpec, listVoices } from "./voices";
 import type {
     LoadVoiceOptions,
+    VoiceCloneProgress,
     VoiceDownloadProgress,
     VoiceFile,
     VoiceId,
@@ -19,6 +20,8 @@ const
     fileKey = (options: { voice: VoiceId; file: string }): string => {
         return `tts/${options.voice}/${options.file}`;
     },
+    /** Store key of one clone codec file. */
+    cloneKey = (file: string): string => `tts/clone/${file}`,
     /** Host without a trailing slash. */
     host = (base?: string): string => (base ?? HF_BASE).replace(/\/+$/, ""),
     /** URL of one repository file. */
@@ -73,8 +76,8 @@ const
         }
     },
     /** Download one file into the store. */
-    fetchFile = async (options: {
-        voice: VoiceId;
+    fetchKey = async (options: {
+        key: string;
         base: string;
         file: VoiceFile;
         signal: AbortSignal;
@@ -82,7 +85,7 @@ const
     }): Promise<void> => {
         const
             store = await getStore(),
-            key = fileKey({ voice: options.voice, file: options.file.file });
+            key = options.key;
         if (await store.exists(key)) {
             options.onBytes?.(options.file.bytes);
             return;
@@ -117,6 +120,22 @@ const
             }
         }
         throw last;
+    },
+    /** Download one voice file into the store. */
+    fetchFile = async (options: {
+        voice: VoiceId;
+        base: string;
+        file: VoiceFile;
+        signal: AbortSignal;
+        onBytes?: (bytes: number) => void;
+    }): Promise<void> => {
+        await fetchKey({
+            key: fileKey({ voice: options.voice, file: options.file.file }),
+            base: options.base,
+            file: options.file,
+            signal: options.signal,
+            onBytes: options.onBytes,
+        });
     },
     /** Files of a voice that are not stored. */
     missingFiles = async (voice: VoiceId): Promise<VoiceFile[]> => {
@@ -282,4 +301,113 @@ const loadVoice = async (options: LoadVoiceOptions): Promise<VoiceSpec> => {
     }
 };
 
-export { loadVoice, isVoiceCached, removeVoice };
+let
+    /** Single flight promise of the clone codec load. */
+    cloneLoad: Promise<void> | undefined;
+
+const
+    /** Download the clone codec when missing. */
+    loadCloneFiles = async (options: {
+        weightsBaseUrl?: string;
+        onProgress?: (progress: VoiceCloneProgress) => void;
+    }): Promise<void> => {
+        if (cloneLoad) {
+            await cloneLoad;
+            return;
+        }
+        const
+            base = host(options.weightsBaseUrl),
+            total = CLONE_FILES.reduce((sum, file) => sum + file.bytes, 0),
+            controller = new AbortController();
+        let loaded = 0;
+        const
+            /** Report one progress sample. */
+            report = (
+                file: string,
+                ratio: number,
+                phase: ProgressPhase,
+            ): void => {
+                const progress: VoiceCloneProgress = {
+                    file,
+                    loaded,
+                    total,
+                    ratio: Math.max(0, Math.min(1, ratio)),
+                    phase,
+                };
+                options.onProgress?.(progress);
+            },
+            /** One cancellable load of the clone codec. */
+            task = (async (): Promise<void> => {
+                const store = await getStore();
+                let missing = false;
+                for (const file of CLONE_FILES) {
+                    const
+                        key = cloneKey(file.file),
+                        measured = await store.size?.(key),
+                        size = measured
+                            ?? (await store.exists(key) ? file.bytes : 0);
+                    if (size === file.bytes) {
+                        continue;
+                    }
+                    await store.remove(key);
+                    missing = true;
+                }
+                if (!missing) {
+                    return;
+                }
+                await persistStorage();
+                report("", 0, ProgressPhase.download);
+                for (const file of CLONE_FILES) {
+                    const before = loaded;
+                    await fetchKey({
+                        key: cloneKey(file.file),
+                        base,
+                        file,
+                        signal: controller.signal,
+                        onBytes: (bytes) => {
+                            loaded = before + bytes;
+                            report(
+                                file.file,
+                                total > 0 ? loaded / total : 0,
+                                ProgressPhase.download,
+                            );
+                        },
+                    });
+                    loaded = before + file.bytes;
+                    report(
+                        file.file,
+                        total > 0 ? loaded / total : 0,
+                        ProgressPhase.verify,
+                    );
+                }
+                report("", 1, ProgressPhase.verify);
+            })();
+        cloneLoad = task;
+        try {
+            await task;
+        } finally {
+            if (cloneLoad === task) {
+                cloneLoad = undefined;
+            }
+        }
+    },
+    /** Read the stored clone codec data. */
+    readCloneWeights = async (): Promise<Uint8Array> => {
+        const
+            store = await getStore(),
+            bytes = await store.readBytes(
+                cloneKey(CLONE_FILES[0].file),
+            );
+        if (!bytes) {
+            throw new Error(`clone codec is not loaded`);
+        }
+        return bytes;
+    };
+
+export {
+    loadVoice,
+    isVoiceCached,
+    removeVoice,
+    loadCloneFiles,
+    readCloneWeights,
+};

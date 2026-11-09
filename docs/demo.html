@@ -92,8 +92,8 @@
             <h1>Speech demo</h1>
             <p class="hint">
                 This page loads <code>@degreesign/voice</code> from jsDelivr,
-                so you can try speech to text and text to speech before
-                installing the package.
+                so you can try speech to text, text to speech and voice
+                cloning before installing the package.
             </p>
 
             <section>
@@ -128,7 +128,8 @@
                     Pick a voice, tune the sliders and press Speak. The first
                     run downloads the voice and keeps it cached. Pitch and rate
                     apply after synthesis. Temperature and seed only affect the
-                    MOSS voices (Female and Male).
+                    MOSS voices (Female and Male). Record a reference below,
+                    then tick it to speak with your clone.
                 </p>
                 <label class="field">
                     Voice
@@ -204,10 +205,38 @@
                         />
                     </label>
                 </div>
-                <button id="speak" type="button">Speak</button>
+                <div class="row">
+                    <label>
+                        <input id="use_clone" type="checkbox" disabled />
+                        Use recorded reference
+                    </label>
+                    <button id="speak" type="button">Speak</button>
+                </div>
                 <progress id="progress" max="100" value="0"></progress>
                 <p id="status" class="status" role="status">Ready.</p>
                 <audio id="playback" controls></audio>
+            </section>
+
+            <section>
+                <h2>Voice cloning</h2>
+                <p class="hint">
+                    Record a short reference from the microphone. The first
+                    run downloads the 45 MB MOSS encoder. Tick the reference
+                    and press Speak to render the selected voice as the
+                    recording.
+                </p>
+                <div class="row">
+                    <button id="record_clone" type="button">
+                        Record reference
+                    </button>
+                    <button id="clear_clone" type="button" disabled>
+                        Clear reference
+                    </button>
+                </div>
+                <progress id="clone_progress" max="100" value="0"></progress>
+                <p id="clone_status" class="status" role="status">
+                    No reference recorded.
+                </p>
             </section>
         </main>
         <script src="https://cdn.jsdelivr.net/npm/@degreesign/voice/dist/browser/degreesign.min.js"></script>
