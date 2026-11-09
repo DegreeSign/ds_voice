@@ -1,6 +1,13 @@
-// CDN voice demo page.
+// CDN speech demo page.
 const
     engine = window.dsVoice,
+    transcript = document.getElementById("transcript"),
+    listenButton = document.getElementById("listen"),
+    stopButton = document.getElementById("stop"),
+    audioInput = document.getElementById("audio_file"),
+    transcribeFileButton = document.getElementById("transcribe_file"),
+    sttProgress = document.getElementById("stt_progress"),
+    sttStatus = document.getElementById("stt_status"),
     voiceSelect = document.getElementById("voice"),
     textInput = document.getElementById("text"),
     speakButton = document.getElementById("speak"),
@@ -28,7 +35,116 @@ const
 let
     playbackUrl = "",
     lastProgressAt = 0,
-    synthesizing = false;
+    synthesizing = false,
+    session = null,
+    poll = 0;
+
+/** Stop the live transcript poll. */
+const stopPoll = () => {
+    if (!poll) {
+        return;
+    }
+    window.clearInterval(poll);
+    poll = 0;
+};
+
+/** Set the speech to text controls for one busy state. */
+const setSttBusy = (busy) => {
+    listenButton.disabled = busy;
+    transcribeFileButton.disabled = busy;
+    stopButton.disabled = !busy;
+};
+
+/** Show one download or decode update. */
+const showSttProgress = (update) => {
+    sttProgress.value = Math.round(update.ratio * 100);
+    sttStatus.textContent = `${update.phase} ${sttProgress.value}%`;
+};
+
+/** Follow one session until its transcript arrives. */
+const followSession = async ({ label, create }) => {
+    if (!engine?.transcribe) {
+        sttStatus.textContent = "The speech bundle is not loaded.";
+        return;
+    }
+    setSttBusy(true);
+    transcript.value = "";
+    sttProgress.value = 0;
+    sttStatus.textContent = `Starting ${label}...`;
+    stopPoll();
+    const active = create();
+    session = active;
+    poll = window.setInterval(() => {
+        const live = active.fullText();
+        if (live.text) {
+            transcript.value = live.text;
+        }
+        if (live.msElapsed > 0) {
+            sttStatus.textContent = `Decoding ${(
+                live.msElapsed / 1000
+            ).toFixed(1)} s`;
+        }
+    }, 200);
+    try {
+        const result = await active.done;
+        transcript.value = result.text;
+        const seconds = result.duration.toFixed(1);
+        sttStatus.textContent = result.text
+            ? `${label} done. ${seconds} s of audio.`
+            : `${label} done. No speech detected.`;
+        sttProgress.value = 100;
+    } catch (error) {
+        sttStatus.textContent = `Failed: ${error?.message ?? error}`;
+    } finally {
+        stopPoll();
+        if (session === active) {
+            session = null;
+        }
+        setSttBusy(false);
+    }
+};
+
+/** Transcribe the microphone with the low quality weights. */
+const startListening = () => {
+    void followSession({
+        label: "microphone",
+        create: () => engine.transcribe({
+            model: engine.ModelId.WhisperBase,
+            language: engine.Language.auto,
+            quality: engine.Quality.Low,
+            onProgress: showSttProgress,
+        }),
+    });
+};
+
+/** Transcribe the picked audio file. */
+const startFile = () => {
+    const file = audioInput.files?.[0];
+    if (!file) {
+        sttStatus.textContent = "Pick an audio file first.";
+        return;
+    }
+    void followSession({
+        label: "file",
+        create: () => engine.transcribe({
+            audioFilePath: file,
+            model: engine.ModelId.WhisperBase,
+            language: engine.Language.auto,
+            quality: engine.Quality.Low,
+            onProgress: showSttProgress,
+        }),
+    });
+};
+
+/** Stop the active transcription and keep its text. */
+const stopTranscription = () => {
+    if (!session) {
+        return;
+    }
+    sttStatus.textContent = "Finishing...";
+    stopButton.disabled = true;
+    void session.stop().catch(() => undefined);
+};
 
 /** Fill the voice list and select Female. */
 const fillVoices = () => {
@@ -198,6 +314,10 @@ const speak = async () => {
     }
 };
 
+if (!engine) {
+    sttStatus.textContent = "The speech bundle did not load.";
+    status.textContent = "The voice bundle did not load.";
+}
 fillVoices();
 applyDefaults(voiceSelect.value);
 for (const slider of SLIDERS) {
@@ -208,5 +328,8 @@ voiceSelect.addEventListener("change", () => {
     applyDefaults(voiceSelect.value);
     updateControls();
 });
+listenButton.addEventListener("click", startListening);
+stopButton.addEventListener("click", stopTranscription);
+transcribeFileButton.addEventListener("click", startFile);
 speakButton.addEventListener("click", () => void speak());
 updateControls();
