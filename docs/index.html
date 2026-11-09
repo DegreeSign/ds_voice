@@ -1,0 +1,2616 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>@degreesign/voice | Offline speech to text and text to speech</title>
+        <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+        <meta
+            name="description"
+            content="Offline speech to text, text to speech and voice cloning
+            for the browser and Node.js. Whisper and MOSS run locally."
+        />
+        <script>
+            document.documentElement.classList.add("js");
+        </script>
+        <style>
+            :root {
+                --paper: #f6f3ec;
+                --paper-2: #efeae0;
+                --ink: #15171c;
+                --ink-2: #3f4652;
+                --muted: #6d7480;
+                --faint: #9a9080;
+                --line: #ded7ca;
+                --card: #fffdf8;
+                --dark: #0d1117;
+                --dark-2: #151b23;
+                --teal: #0f766e;
+                --blue: #2563eb;
+                --radius: 20px;
+                --max: 1160px;
+                --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                    sans-serif;
+                --serif: "Iowan Old Style", "Palatino Linotype", Palatino,
+                    Georgia, serif;
+                --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            }
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+            html {
+                scroll-behavior: smooth;
+                scroll-padding-bottom: 100px;
+                scroll-padding-top: 24px;
+            }
+            body {
+                margin: 0;
+                background: var(--paper);
+                color: var(--ink);
+                font: 400 17px/1.65 var(--sans);
+                -webkit-font-smoothing: antialiased;
+            }
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+            img,
+            svg,
+            canvas {
+                display: block;
+                max-width: 100%;
+            }
+            button {
+                font: inherit;
+            }
+            code {
+                font-family: var(--mono);
+            }
+            :focus-visible {
+                outline: 2px solid var(--blue);
+                outline-offset: 3px;
+                border-radius: 4px;
+            }
+            .shell {
+                margin-inline: auto;
+                max-width: var(--max);
+                width: 90%;
+            }
+
+            /* Floating menu */
+            .floating-menu {
+                align-items: flex-end;
+                bottom: 0;
+                display: flex;
+                justify-content: center;
+                justify-content: safe center;
+                left: 0;
+                overflow-x: auto;
+                overflow-y: hidden;
+                position: fixed;
+                right: 0;
+                scrollbar-width: none;
+                z-index: 71;
+            }
+            .floating-menu::-webkit-scrollbar {
+                display: none;
+            }
+            .floating-track {
+                align-items: center;
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                background: rgba(255, 253, 248, 0.78);
+                border: 1px solid rgba(222, 215, 202, 0.9);
+                border-radius: 54px;
+                box-shadow: 0 8px 30px -12px rgba(21, 23, 28, 0.45);
+                display: flex;
+                gap: 2px;
+                height: 54px;
+                margin: 16px 24px 24px;
+                max-width: 800px;
+                min-width: max-content;
+                padding: 0 4px;
+            }
+            .float-button {
+                align-items: center;
+                background: transparent;
+                border: 0;
+                border-radius: 16px;
+                color: var(--ink);
+                cursor: pointer;
+                display: flex;
+                flex-direction: column;
+                font: 500 10px/10px var(--sans);
+                gap: 3px;
+                height: 46px;
+                justify-content: center;
+                min-width: 64px;
+                padding: 0 6px;
+                text-align: center;
+                transition: background 0.2s ease, color 0.2s ease,
+                    gap 0.2s ease, padding 0.2s ease;
+                white-space: nowrap;
+            }
+            .float-button:hover {
+                background: rgba(21, 23, 28, 0.06);
+            }
+            .float-button svg {
+                height: 20px;
+                width: 20px;
+            }
+            .float-button.is-selected {
+                background: var(--ink);
+                border-radius: 54px;
+                color: #fff;
+                flex-direction: row;
+                font-size: 13px;
+                font-weight: 600;
+                gap: 8px;
+                line-height: 1;
+                padding: 0 14px;
+            }
+            .float-button.is-selected:hover {
+                background: #2b3038;
+            }
+            .float-button.is-selected svg {
+                height: 18px;
+                width: 18px;
+            }
+            .brand {
+                align-items: center;
+                color: #f8fafc;
+                display: flex;
+                flex: none;
+                font: 600 15px/1 var(--mono);
+                gap: 10px;
+                letter-spacing: -0.01em;
+            }
+            .brand-mark {
+                background: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.18);
+                border-radius: 8px;
+                display: grid;
+                height: 28px;
+                place-items: center;
+                width: 28px;
+            }
+            .brand-mark svg {
+                height: 16px;
+                width: 16px;
+            }
+            .hero-brand {
+                margin-bottom: 28px;
+                width: fit-content;
+            }
+
+            /* Hero */
+            .hero {
+                background:
+                    radial-gradient(
+                        1100px 600px at 78% -10%,
+                        rgba(37, 99, 235, 0.35),
+                        transparent 60%
+                    ),
+                    radial-gradient(
+                        900px 500px at 10% 10%,
+                        rgba(15, 118, 110, 0.3),
+                        transparent 55%
+                    ),
+                    var(--dark);
+                color: #f8fafc;
+                overflow: hidden;
+                padding: 100px 0 96px;
+                position: relative;
+            }
+            .hero::after {
+                background: rgba(255, 255, 255, 0.08);
+                bottom: 0;
+                content: "";
+                height: 1px;
+                inset-inline: 0;
+                position: absolute;
+            }
+            .hero-grid {
+                align-items: center;
+                display: grid;
+                gap: clamp(32px, 5vw, 72px);
+                grid-template-columns: 1.05fr 0.95fr;
+                padding-bottom: 64px;
+            }
+            .eyebrow {
+                align-items: center;
+                color: var(--muted);
+                display: flex;
+                font: 500 12px/1 var(--mono);
+                gap: 9px;
+                letter-spacing: 0.14em;
+                margin: 0 0 18px;
+                text-transform: uppercase;
+            }
+            .hero .eyebrow {
+                color: #8ea0b8;
+            }
+            .eyebrow .dot {
+                background: #34d399;
+                border-radius: 50%;
+                box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.14);
+                height: 7px;
+                width: 7px;
+            }
+            h1 {
+                font-family: var(--serif);
+                font-size: clamp(2.9rem, 6.4vw, 5.5rem);
+                font-weight: 600;
+                letter-spacing: -0.045em;
+                line-height: 0.98;
+                margin: 0;
+                text-wrap: balance;
+            }
+            .grad {
+                background: linear-gradient(
+                    100deg,
+                    #5eead4 0%,
+                    #60a5fa 48%,
+                    #c4b5fd 100%
+                );
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
+            }
+            .lead {
+                color: var(--ink-2);
+                font-size: clamp(1rem, 1.4vw, 1.12rem);
+                line-height: 1.65;
+                margin: 22px 0 0;
+                max-width: 56ch;
+            }
+            .hero .lead {
+                color: #aab4c2;
+                max-width: 52ch;
+            }
+            .actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+                margin-top: 30px;
+            }
+            .button {
+                align-items: center;
+                border-radius: 999px;
+                display: inline-flex;
+                font: 600 14px/1 var(--sans);
+                gap: 10px;
+                padding: 13px 22px;
+                transition: background 0.2s ease, border-color 0.2s ease,
+                    transform 0.2s ease;
+            }
+            .button:hover {
+                transform: translateY(-2px);
+            }
+            .button.primary {
+                background: #f8fafc;
+                color: #0d1117;
+            }
+            .button.primary:hover {
+                background: #fff;
+            }
+            .button.ghost {
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid rgba(255, 255, 255, 0.22);
+                color: #e2e8f0;
+            }
+            .button.ghost:hover {
+                background: rgba(255, 255, 255, 0.09);
+                border-color: rgba(255, 255, 255, 0.34);
+            }
+            .hero-note {
+                color: #77849a;
+                font: 500 12px/1.5 var(--mono);
+                margin: 24px 0 0;
+            }
+
+            /* Console */
+            .console {
+                background: linear-gradient(
+                    180deg,
+                    rgba(255, 255, 255, 0.08),
+                    rgba(255, 255, 255, 0.03)
+                );
+                border: 1px solid rgba(255, 255, 255, 0.14);
+                border-radius: 24px;
+                box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.8);
+                padding: 18px;
+            }
+            .console-top {
+                align-items: center;
+                color: #7f8b9e;
+                display: flex;
+                font: 500 11.5px/1 var(--mono);
+                gap: 12px;
+                letter-spacing: 0.02em;
+            }
+            .lights {
+                display: flex;
+                gap: 5px;
+            }
+            .lights i {
+                background: #2b3442;
+                border-radius: 50%;
+                height: 7px;
+                width: 7px;
+            }
+            .lights i:nth-child(1) {
+                background: #f87171;
+            }
+            .lights i:nth-child(2) {
+                background: #fbbf24;
+            }
+            .lights i:nth-child(3) {
+                background: #34d399;
+            }
+            #console-mode {
+                flex: 1;
+            }
+            .live {
+                align-items: center;
+                color: #6ee7b7;
+                display: inline-flex;
+                gap: 6px;
+            }
+            .live i {
+                animation: pulse 2s infinite;
+                background: #34d399;
+                border-radius: 50%;
+                height: 6px;
+                width: 6px;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
+                    opacity: 1;
+                }
+                50% {
+                    box-shadow: 0 0 0 5px rgba(52, 211, 153, 0);
+                    opacity: 0.55;
+                }
+            }
+            .console-tabs {
+                display: flex;
+                gap: 6px;
+                margin: 16px 0 10px;
+            }
+            .console-tabs button {
+                background: transparent;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                border-radius: 999px;
+                color: #8b97aa;
+                cursor: pointer;
+                font: 600 12px/1 var(--sans);
+                padding: 7px 12px;
+            }
+            .console-tabs button[aria-selected="true"] {
+                background: #f8fafc;
+                border-color: #f8fafc;
+                color: #0d1117;
+            }
+            .wave-wrap {
+                background: rgba(0, 0, 0, 0.18);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 14px;
+                overflow: hidden;
+            }
+            #wave {
+                height: 150px;
+                width: 100%;
+            }
+            .console-body {
+                padding: 16px 4px 4px;
+            }
+            .quote {
+                color: #f1f5f9;
+                font-family: var(--serif);
+                font-size: clamp(1.25rem, 2vw, 1.6rem);
+                letter-spacing: -0.02em;
+                line-height: 1.25;
+                margin: 0;
+                min-height: 2.5em;
+            }
+            .chips {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-top: 14px;
+            }
+            .chips span {
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                border-radius: 999px;
+                color: #93a0b4;
+                font: 500 11px/1 var(--mono);
+                padding: 6px 10px;
+            }
+
+            /* Stats */
+            .stats {
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+            }
+            .stats div {
+                border-right: 1px solid rgba(255, 255, 255, 0.08);
+                padding: 22px 0 26px 22px;
+            }
+            .stats div:first-child {
+                padding-left: 0;
+            }
+            .stats div:last-child {
+                border-right: 0;
+            }
+            .stats strong {
+                color: #f8fafc;
+                display: block;
+                font-family: var(--serif);
+                font-size: clamp(1.7rem, 3vw, 2.4rem);
+                font-weight: 600;
+                letter-spacing: -0.03em;
+                line-height: 1;
+            }
+            .stats span {
+                color: #7d8a9e;
+                display: block;
+                font: 500 11.5px/1 var(--mono);
+                letter-spacing: 0.08em;
+                margin-top: 6px;
+                text-transform: uppercase;
+            }
+
+            /* Sections */
+            .section {
+                padding: clamp(72px, 9vw, 116px) 0;
+            }
+            .section.band {
+                background: var(--paper-2);
+                border-block: 1px solid var(--line);
+            }
+            .section-head {
+                margin-bottom: 42px;
+                max-width: 720px;
+            }
+            .section-head .eyebrow {
+                color: var(--teal);
+            }
+            h2 {
+                font-family: var(--serif);
+                font-size: clamp(2rem, 4vw, 3.3rem);
+                font-weight: 600;
+                letter-spacing: -0.04em;
+                line-height: 1.03;
+                margin: 0;
+                text-wrap: balance;
+            }
+            .section-head .lead {
+                margin-top: 16px;
+            }
+            .cards {
+                display: grid;
+                gap: 18px;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+            .card {
+                background: var(--card);
+                border: 1px solid var(--line);
+                border-radius: var(--radius);
+                padding: 26px;
+                transition: border-color 0.25s ease, box-shadow 0.25s ease,
+                    transform 0.25s ease;
+            }
+            .card:hover {
+                border-color: #cfc6b6;
+                box-shadow: 0 24px 50px -34px rgba(21, 23, 28, 0.5);
+                transform: translateY(-4px);
+            }
+            .icon {
+                align-items: center;
+                background: linear-gradient(
+                    135deg,
+                    rgba(15, 118, 110, 0.12),
+                    rgba(37, 99, 235, 0.12)
+                );
+                border: 1px solid rgba(15, 118, 110, 0.18);
+                border-radius: 12px;
+                color: var(--teal);
+                display: flex;
+                height: 40px;
+                justify-content: center;
+                margin-bottom: 18px;
+                width: 40px;
+            }
+            .icon svg {
+                height: 20px;
+                width: 20px;
+            }
+            .card h3 {
+                font: 600 18px/1.25 var(--sans);
+                letter-spacing: -0.01em;
+                margin: 0 0 8px;
+            }
+            .card p {
+                color: var(--ink-2);
+                font-size: 15.5px;
+                line-height: 1.6;
+                margin: 0;
+            }
+            .tags {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-top: 16px;
+            }
+            .tags span {
+                background: rgba(15, 118, 110, 0.07);
+                border-radius: 999px;
+                color: var(--teal);
+                font: 600 11px/1 var(--mono);
+                padding: 5px 9px;
+            }
+
+            /* Embedded demo */
+            .demo-grid {
+                align-items: start;
+                display: grid;
+                gap: 18px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .demo-card:hover {
+                transform: none;
+            }
+            .demo-card h3 {
+                font: 600 20px/1.2 var(--serif);
+                letter-spacing: -0.02em;
+                margin: 0 0 8px;
+            }
+            .demo-card .hint {
+                color: var(--muted);
+                font-size: 13px;
+                line-height: 1.55;
+                margin: 0 0 14px;
+            }
+            .demo-card textarea {
+                background: var(--paper);
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                box-sizing: border-box;
+                color: var(--ink);
+                display: block;
+                font: 13px/1.5 var(--mono);
+                min-height: 92px;
+                padding: 10px;
+                resize: vertical;
+                width: 100%;
+            }
+            .demo-card .row {
+                align-items: center;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin: 12px 0;
+            }
+            .demo-card .row input[type="file"] {
+                color: var(--ink-2);
+                flex: 1 1 220px;
+                font: 13px var(--sans);
+                min-width: 0;
+            }
+            .demo-card button {
+                background: var(--ink);
+                border: 0;
+                border-radius: 999px;
+                color: #fff;
+                cursor: pointer;
+                font: 600 12.5px/1 var(--sans);
+                padding: 10px 15px;
+                transition: background 0.2s ease, opacity 0.2s ease;
+            }
+            .demo-card button:hover:not(:disabled) {
+                background: #2b3038;
+            }
+            .demo-card button:disabled {
+                cursor: not-allowed;
+                opacity: 0.38;
+            }
+            .demo-card progress {
+                appearance: none;
+                -webkit-appearance: none;
+                background: var(--paper-2);
+                border: 0;
+                border-radius: 999px;
+                display: block;
+                height: 6px;
+                margin: 14px 0 8px;
+                overflow: hidden;
+                width: 100%;
+            }
+            .demo-card progress::-webkit-progress-bar {
+                background: var(--paper-2);
+                border-radius: 999px;
+            }
+            .demo-card progress::-webkit-progress-value {
+                background: var(--teal);
+                border-radius: 999px;
+            }
+            .demo-card progress::-moz-progress-bar {
+                background: var(--teal);
+                border-radius: 999px;
+            }
+            .demo-card .status {
+                color: var(--muted);
+                font: 12px/1.5 var(--mono);
+                min-height: 18px;
+                white-space: pre-wrap;
+            }
+            .demo-card .field {
+                color: var(--ink-2);
+                display: block;
+                font-size: 13px;
+                margin: 12px 0;
+            }
+            .demo-card .field select,
+            .demo-card .field input[type="text"] {
+                background: var(--paper);
+                border: 1px solid var(--line);
+                border-radius: 10px;
+                box-sizing: border-box;
+                color: var(--ink);
+                display: block;
+                font: 13px/1.4 var(--sans);
+                margin-top: 5px;
+                padding: 8px 10px;
+                width: 100%;
+            }
+            .demo-card .sliders {
+                background: rgba(239, 234, 224, 0.55);
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                margin: 14px 0;
+                padding: 10px 12px;
+            }
+            .demo-card .slider {
+                color: var(--ink-2);
+                display: block;
+                font-size: 12.5px;
+                margin: 8px 0;
+            }
+            .demo-card .slider span {
+                color: var(--ink);
+                float: right;
+                font-weight: 600;
+            }
+            .demo-card .slider input {
+                accent-color: var(--teal);
+                display: block;
+                margin-top: 6px;
+                width: 100%;
+            }
+            .demo-card audio {
+                display: block;
+                margin-top: 12px;
+                width: 100%;
+            }
+            .section-head .fine a {
+                color: var(--teal);
+                text-decoration: underline;
+                text-underline-offset: 3px;
+            }
+
+            /* Case study */
+            .case-grid {
+                align-items: center;
+                display: grid;
+                gap: clamp(32px, 5vw, 64px);
+                grid-template-columns: 1fr 1fr;
+            }
+            .case-points {
+                display: grid;
+                gap: 12px;
+                list-style: none;
+                margin: 24px 0 0;
+                padding: 0;
+            }
+            .case-points li {
+                color: var(--ink-2);
+                display: grid;
+                font-size: 14.5px;
+                gap: 10px;
+                grid-template-columns: 92px 1fr;
+                line-height: 1.5;
+            }
+            .case-points span {
+                color: var(--teal);
+                font: 600 10.5px/1.6 var(--mono);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+            }
+            .case-actions {
+                align-items: center;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 16px;
+                margin-top: 28px;
+            }
+            .case-button {
+                background: var(--ink);
+                color: #fff;
+            }
+            .case-button:hover {
+                background: #2b3038;
+            }
+            .case-meta {
+                color: var(--muted);
+                font: 500 11.5px/1.5 var(--mono);
+            }
+            .case-lockup {
+                align-items: center;
+                display: flex;
+                gap: 10px;
+                margin: 0 0 14px;
+            }
+            .case-lockup img {
+                height: 38px;
+                width: 38px;
+            }
+            .case-lockup span {
+                font: 600 18px/1 var(--serif);
+                letter-spacing: -0.02em;
+            }
+            .case-visual {
+                display: grid;
+                gap: 14px;
+            }
+            .case-shot {
+                background: var(--card);
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                box-shadow: 0 24px 50px -34px rgba(21, 23, 28, 0.5);
+                margin: 0;
+                overflow: hidden;
+            }
+            .case-shot img {
+                display: block;
+                height: auto;
+                width: 100%;
+            }
+            .case-shot figcaption {
+                color: var(--muted);
+                font: 500 11px/1.5 var(--mono);
+                padding: 9px 14px 11px;
+            }
+            .case-shot-main {
+                transform: rotate(-0.8deg);
+                transition: box-shadow 0.3s ease, transform 0.3s ease;
+            }
+            .case-shot-main:hover {
+                box-shadow: 0 34px 60px -34px rgba(21, 23, 28, 0.55);
+                transform: rotate(0deg) translateY(-3px);
+            }
+            .case-shot-secondary {
+                margin-left: 8%;
+                transform: rotate(0.8deg);
+                width: 92%;
+            }
+            .case-shot-note {
+                color: var(--muted);
+                font: 500 10.5px/1.5 var(--mono);
+                margin: 0;
+                text-align: right;
+            }
+
+            /* Steps */
+            .steps {
+                display: grid;
+                gap: 18px;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+            .step {
+                background: var(--card);
+                border: 1px solid var(--line);
+                border-radius: var(--radius);
+                padding: 26px;
+            }
+            .step > span {
+                align-items: center;
+                background: var(--ink);
+                border-radius: 50%;
+                color: #fff;
+                display: inline-flex;
+                font: 600 12px/1 var(--mono);
+                height: 38px;
+                justify-content: center;
+                width: 38px;
+            }
+            .step h3 {
+                font: 600 18px/1.2 var(--sans);
+                margin: 18px 0 8px;
+            }
+            .step p {
+                color: var(--ink-2);
+                font-size: 15.5px;
+                margin: 0;
+            }
+
+            /* Models */
+            .model-grid {
+                display: grid;
+                gap: 18px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .model-card {
+                background: var(--card);
+                border: 1px solid var(--line);
+                border-radius: var(--radius);
+                padding: 28px;
+            }
+            .model-top {
+                align-items: center;
+                display: flex;
+                gap: 12px;
+                justify-content: space-between;
+                margin-bottom: 18px;
+            }
+            .model-top h3 {
+                font: 600 20px/1.2 var(--serif);
+                letter-spacing: -0.02em;
+                margin: 0;
+            }
+            .badge {
+                background: var(--ink);
+                border-radius: 999px;
+                color: #fff;
+                font: 600 10.5px/1 var(--mono);
+                letter-spacing: 0.06em;
+                padding: 6px 10px;
+                text-transform: uppercase;
+            }
+            table {
+                border-collapse: collapse;
+                font-size: 14.5px;
+                width: 100%;
+            }
+            th {
+                border-bottom: 1px solid var(--line);
+                color: var(--muted);
+                font: 600 11px/1 var(--mono);
+                letter-spacing: 0.08em;
+                padding: 9px 0;
+                text-align: left;
+                text-transform: uppercase;
+            }
+            td {
+                border-bottom: 1px solid rgba(222, 215, 202, 0.6);
+                color: var(--ink-2);
+                padding: 11px 0;
+            }
+            td:last-child,
+            th:last-child {
+                text-align: right;
+            }
+            tbody tr:last-child td {
+                border-bottom: 0;
+            }
+            .fine {
+                color: var(--muted);
+                font-size: 13px;
+                line-height: 1.55;
+                margin: 16px 0 0;
+            }
+            .fine code,
+            td code {
+                background: rgba(15, 118, 110, 0.07);
+                border-radius: 4px;
+                padding: 1px 5px;
+            }
+
+            /* Architecture */
+            .section.dark {
+                background:
+                    radial-gradient(
+                        800px 400px at 80% 0%,
+                        rgba(37, 99, 235, 0.22),
+                        transparent 60%
+                    ),
+                    var(--dark);
+                border: 0;
+                color: #f8fafc;
+            }
+            .section.dark .eyebrow {
+                color: #7dd3fc;
+            }
+            .section.dark .lead {
+                color: #9aa6b8;
+            }
+            .arch-grid {
+                align-items: center;
+                display: grid;
+                gap: clamp(32px, 5vw, 64px);
+                grid-template-columns: 1fr 1fr;
+            }
+            .arch-points {
+                display: grid;
+                gap: 10px;
+                list-style: none;
+                margin: 24px 0 0;
+                padding: 0;
+            }
+            .arch-points li {
+                align-items: baseline;
+                color: #9aa6b8;
+                display: flex;
+                font-size: 14.5px;
+                gap: 12px;
+                line-height: 1.5;
+            }
+            .arch-points span {
+                color: #7dd3fc;
+                font: 600 11px/1 var(--mono);
+            }
+            .arch-button {
+                margin-top: 28px;
+            }
+            .arch-note {
+                color: #77849a;
+                font: 500 11.5px/1.5 var(--mono);
+                margin: 16px 0 0;
+            }
+            .arch-note a {
+                color: #a5f3fc;
+                text-decoration: underline;
+                text-underline-offset: 3px;
+            }
+            .arch-preview {
+                background: var(--paper);
+                border: 1px solid rgba(255, 255, 255, 0.16);
+                border-radius: 20px;
+                box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.7);
+                color: var(--ink);
+                display: block;
+                overflow: hidden;
+                transition: box-shadow 0.25s ease, transform 0.25s ease;
+            }
+            .arch-preview:hover {
+                box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.8);
+                transform: translateY(-4px);
+            }
+            .arch-preview-top {
+                align-items: center;
+                background: #f7f2e8;
+                border-bottom: 1px solid var(--line);
+                color: var(--muted);
+                display: flex;
+                font: 500 11px/1 var(--mono);
+                gap: 10px;
+                padding: 12px 16px;
+            }
+            .arch-preview-top span:last-child {
+                color: var(--faint);
+                margin-left: auto;
+            }
+            .arch-dot {
+                background: var(--teal);
+                border-radius: 50%;
+                height: 7px;
+                width: 7px;
+            }
+            .arch-bands {
+                display: grid;
+                gap: 8px;
+                padding: 18px;
+            }
+            .arch-band {
+                background: var(--card);
+                border-left: 3px solid var(--band);
+                border-radius: 6px;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                padding: 10px 12px;
+            }
+            .arch-band span {
+                color: var(--ink);
+                font: 600 12px/1.2 var(--sans);
+            }
+            .arch-band small {
+                color: var(--muted);
+                font: 10.5px/1.3 var(--mono);
+            }
+            .arch-band:nth-child(1) {
+                --band: #1f6f5c;
+            }
+            .arch-band:nth-child(2) {
+                --band: #2563eb;
+            }
+            .arch-band:nth-child(3) {
+                --band: #7c3aed;
+            }
+            .arch-band:nth-child(4) {
+                --band: #b45309;
+            }
+            .arch-band:nth-child(5) {
+                --band: #0e7490;
+            }
+            .arch-preview-foot {
+                align-items: center;
+                border-top: 1px solid var(--line);
+                color: var(--teal);
+                display: flex;
+                font: 600 12px/1 var(--mono);
+                justify-content: space-between;
+                padding: 12px 16px;
+            }
+
+            /* Install */
+            .install-grid {
+                align-items: start;
+                display: grid;
+                gap: clamp(28px, 5vw, 64px);
+                grid-template-columns: 1fr 1fr;
+            }
+            .cmd {
+                align-items: center;
+                background: var(--card);
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                display: flex;
+                gap: 12px;
+                margin-top: 24px;
+                padding: 14px 16px;
+            }
+            .cmd code {
+                color: var(--ink);
+                flex: 1;
+                font: 500 13.5px/1.4 var(--mono);
+                overflow-x: auto;
+            }
+            .cmd button {
+                background: var(--ink);
+                border: 0;
+                border-radius: 999px;
+                color: #fff;
+                cursor: pointer;
+                flex: none;
+                font: 600 11.5px/1 var(--sans);
+                padding: 8px 14px;
+            }
+            .cmd button:hover {
+                background: #2b3038;
+            }
+            .code {
+                background: #0f141b;
+                border: 1px solid #1e2733;
+                border-radius: var(--radius);
+                box-shadow: 0 30px 60px -40px rgba(15, 20, 27, 0.7);
+                color: #dbe4ef;
+                font: 13.5px/1.7 var(--mono);
+                margin: 0;
+                overflow-x: auto;
+                padding: 26px;
+            }
+            .tok-key {
+                color: #c4b5fd;
+            }
+            .tok-str {
+                color: #86efac;
+            }
+            .tok-var {
+                color: #93c5fd;
+            }
+            .tok-fn {
+                color: #5eead4;
+            }
+
+            /* Footer */
+            .footer {
+                background: #0b0e13;
+                color: #8e9aad;
+                padding: 48px 0 120px;
+            }
+            .footer-inner {
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                display: flex;
+                gap: 32px;
+                justify-content: space-between;
+                padding-bottom: 28px;
+            }
+            .footer .brand {
+                color: #f8fafc;
+            }
+            .footer p {
+                font-size: 14px;
+                margin: 10px 0 0;
+            }
+            .footer-links {
+                display: flex;
+                flex-wrap: wrap;
+                font: 500 13px/1.6 var(--mono);
+                gap: 18px;
+            }
+            .footer-links a:hover {
+                color: #fff;
+            }
+            .footer-base {
+                color: #5f6b7d;
+                display: flex;
+                font: 500 11.5px/1.5 var(--mono);
+                gap: 16px;
+                justify-content: space-between;
+                padding-top: 20px;
+            }
+
+            /* Motion */
+            .js .reveal {
+                opacity: 0;
+                transform: translateY(18px);
+                transition: opacity 0.65s ease, transform 0.65s ease;
+            }
+            .js .reveal.in {
+                opacity: 1;
+                transform: none;
+            }
+            @media (prefers-reduced-motion: reduce) {
+                html {
+                    scroll-behavior: auto;
+                }
+                .js .reveal {
+                    opacity: 1;
+                    transform: none;
+                    transition: none;
+                }
+                .live i {
+                    animation: none;
+                }
+                .button,
+                .card,
+                .arch-preview,
+                .case-shot-main,
+                .float-button {
+                    transition: none;
+                }
+            }
+
+            /* Responsive */
+            @media (max-width: 980px) {
+                .hero-grid {
+                    grid-template-columns: 1fr;
+                }
+                .console {
+                    max-width: 620px;
+                }
+                .cards {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+                .arch-grid {
+                    grid-template-columns: 1fr;
+                }
+                .case-grid {
+                    grid-template-columns: 1fr;
+                }
+                .steps {
+                    grid-template-columns: 1fr;
+                }
+                .install-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+            @media (max-width: 720px) {
+                .floating-track {
+                    height: 50px;
+                    margin: 12px 14px 16px;
+                }
+                .float-button {
+                    height: 42px;
+                    min-width: 56px;
+                }
+                .float-button.is-selected {
+                    padding: 0 11px;
+                }
+                .hero {
+                    padding-bottom: 110px;
+                    padding-top: 80px;
+                }
+                .stats {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+                .stats div {
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                    padding: 18px 16px;
+                }
+                .stats div:nth-child(2n) {
+                    border-right: 0;
+                }
+                .stats div:nth-child(n + 3) {
+                    border-bottom: 0;
+                }
+                .cards,
+                .demo-grid,
+                .model-grid {
+                    grid-template-columns: 1fr;
+                }
+                .section-head {
+                    margin-bottom: 30px;
+                }
+                #wave {
+                    height: 120px;
+                }
+                .footer-inner {
+                    flex-direction: column;
+                }
+                .footer-base {
+                    flex-direction: column;
+                    gap: 6px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <header class="hero" id="top">
+            <div class="shell hero-grid">
+                <div class="hero-copy">
+                    <a
+                        class="brand hero-brand"
+                        href="#top"
+                        aria-label="@degreesign/voice home"
+                    >
+                        <span class="brand-mark" aria-hidden="true">
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.8"
+                                stroke-linecap="round"
+                            >
+                                <path
+                                    d="M4 12h2M8 7v10M12 4v16M16 8v8M20 11v2"
+                                />
+                            </svg>
+                        </span>
+                        <span>@degreesign/voice</span>
+                    </a>
+                    <p class="eyebrow">
+                        <span class="dot" aria-hidden="true"></span>
+                        Offline speech for the web and Node.js
+                    </p>
+                    <h1>
+                        Speech that stays
+                        <span class="grad">on your device.</span>
+                    </h1>
+                    <p class="lead">
+                        Speech to text, text to speech and voice cloning in one
+                        typed package. Whisper and MOSS run locally, with no
+                        account and no cloud after setup.
+                    </p>
+                    <div class="actions">
+                        <a class="button primary" href="#demo">
+                            Try the live demo
+                            <span aria-hidden="true">&rarr;</span>
+                        </a>
+                        <a
+                            class="button ghost"
+                            href="architecture.html"
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            Explore the architecture
+                        </a>
+                    </div>
+                    <p class="hero-note">
+                        MIT runtime &middot; Apache-2.0 weights &middot;
+                        WebAssembly SIMD
+                    </p>
+                </div>
+
+                <div class="console reveal" data-mode="transcribe">
+                    <div class="console-top">
+                        <span class="lights" aria-hidden="true">
+                            <i></i><i></i><i></i>
+                        </span>
+                        <span id="console-mode">whisper base / listening</span>
+                        <span class="live">
+                            <i aria-hidden="true"></i>
+                            local
+                        </span>
+                    </div>
+                    <div
+                        class="console-tabs"
+                        role="tablist"
+                        aria-label="Capability preview"
+                    >
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected="true"
+                            aria-controls="console-panel"
+                            data-mode="transcribe"
+                        >
+                            Transcribe
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected="false"
+                            aria-controls="console-panel"
+                            data-mode="speak"
+                        >
+                            Speak
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected="false"
+                            aria-controls="console-panel"
+                            data-mode="clone"
+                        >
+                            Clone
+                        </button>
+                    </div>
+                    <div class="wave-wrap">
+                        <canvas id="wave" aria-hidden="true"></canvas>
+                    </div>
+                    <div
+                        class="console-body"
+                        id="console-panel"
+                        role="tabpanel"
+                        aria-live="polite"
+                    >
+                        <p class="quote" id="console-text">
+                            Every word stays on this device.
+                        </p>
+                        <div class="chips">
+                            <span id="console-chip-1">16 kHz mono</span>
+                            <span id="console-chip-2">streaming</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="shell stats reveal">
+                <div>
+                    <strong>2</strong>
+                    <span>directions</span>
+                </div>
+                <div>
+                    <strong>20</strong>
+                    <span>TTS languages</span>
+                </div>
+                <div>
+                    <strong>48</strong>
+                    <span>kHz voice output</span>
+                </div>
+                <div>
+                    <strong>0</strong>
+                    <span>cloud calls</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <section class="section" id="capabilities">
+                <div class="shell">
+                    <div class="section-head reveal">
+                        <p class="eyebrow">Capabilities</p>
+                        <h2>Two directions. One small package.</h2>
+                        <p class="lead">
+                            The same entry handles recognition and synthesis.
+                            Models download once, then every decode runs on the
+                            machine in front of you.
+                        </p>
+                    </div>
+                    <div class="cards">
+                        <article class="card reveal">
+                            <div class="icon" aria-hidden="true">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="M4 12h2M8 7v10M12 4v16M16 8v8M20 11v2" />
+                                </svg>
+                            </div>
+                            <h3>Speech to text</h3>
+                            <p>
+                                Stream a live transcript from the microphone,
+                                a file, a URL or raw PCM. Whisper base runs
+                                locally with automatic language detection.
+                            </p>
+                            <div class="tags">
+                                <span>streaming</span>
+                                <span>word timing</span>
+                            </div>
+                        </article>
+
+                        <article class="card reveal">
+                            <div class="icon" aria-hidden="true">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M11 5 6 9H3v6h3l5 4V5z" />
+                                    <path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12" />
+                                </svg>
+                            </div>
+                            <h3>Text to speech</h3>
+                            <p>
+                                Render two 48 kHz MOSS voices with pitch, rate,
+                                gain, temperature and seed controls. The text
+                                selects one of 20 languages.
+                            </p>
+                            <div class="tags">
+                                <span>48 kHz</span>
+                                <span>20 languages</span>
+                            </div>
+                        </article>
+
+                        <article class="card reveal">
+                            <div class="icon" aria-hidden="true">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M12 3a9 9 0 1 0 9 9" />
+                                    <path d="M12 3a5 5 0 0 1 5 5c0 3-5 5-5 9" />
+                                    <path d="M12 12a3 3 0 1 0 3 3" />
+                                </svg>
+                            </div>
+                            <h3>Voice cloning</h3>
+                            <p>
+                                Record three seconds, encode it with the MOSS
+                                tokenizer and reuse the codes as a speaking
+                                reference. No second recording needed.
+                            </p>
+                            <div class="tags">
+                                <span>3 s reference</span>
+                                <span>45 MB encoder</span>
+                            </div>
+                        </article>
+
+                        <article class="card reveal">
+                            <div class="icon" aria-hidden="true">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <rect x="3" y="6" width="18" height="12" rx="2" />
+                                    <path d="M7 10h2M11 10h2M15 10h2M8 14h8" />
+                                </svg>
+                            </div>
+                            <h3>Dictation</h3>
+                            <p>
+                                A headless controller owns the worker,
+                                microphone capture, pause state and partial
+                                text. Bring your own markup and copy.
+                            </p>
+                            <div class="tags">
+                                <span>worker</span>
+                                <span>partials</span>
+                            </div>
+                        </article>
+
+                        <article class="card reveal">
+                            <div class="icon" aria-hidden="true">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path
+                                        d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1
+                                           h12a1 1 0 0 0 1-1V8z"
+                                    />
+                                    <path d="M14 3v5h5M9 13h6M9 17h6" />
+                                </svg>
+                            </div>
+                            <h3>Any audio</h3>
+                            <p>
+                                Accept 16 kHz PCM, a Blob or File, a URL, a
+                                Node filesystem path or the live microphone.
+                                WAV, FLAC and MP3 decode in Node.
+                            </p>
+                            <div class="tags">
+                                <span>PCM</span>
+                                <span>WAV / FLAC / MP3</span>
+                            </div>
+                        </article>
+
+                        <article class="card reveal">
+                            <div class="icon" aria-hidden="true">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z" />
+                                    <path d="m9 12 2 2 4-4" />
+                                </svg>
+                            </div>
+                            <h3>Local first</h3>
+                            <p>
+                                Weights download once into IndexedDB or the
+                                disk cache. Resumable Range downloads, a 512 MB
+                                budget and no account.
+                            </p>
+                            <div class="tags">
+                                <span>IndexedDB</span>
+                                <span>resumable</span>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section band" id="pipeline">
+                <div class="shell">
+                    <div class="section-head reveal">
+                        <p class="eyebrow">How it works</p>
+                        <h2>From air to text, from text to air.</h2>
+                        <p class="lead">
+                            One entry point chooses the right model, source and
+                            platform. The heavy work stays in WebAssembly on the
+                            CPU.
+                        </p>
+                    </div>
+                    <div class="steps">
+                        <article class="step reveal">
+                            <span>01</span>
+                            <h3>Capture</h3>
+                            <p>
+                                Microphone, PCM, Blob, URL or path. The first
+                                source present wins, so the same API fits a
+                                page, a worker or a Node script.
+                            </p>
+                        </article>
+                        <article class="step reveal">
+                            <span>02</span>
+                            <h3>Decode</h3>
+                            <p>
+                                Whisper base streams through SIMD kernels with
+                                bounded memory, live partial text and decode
+                                timing measured over the model alone.
+                            </p>
+                        </article>
+                        <article class="step reveal">
+                            <span>03</span>
+                            <h3>Speak</h3>
+                            <p>
+                                MOSS renders 48 kHz audio, optionally with a
+                                recorded reference and pitch, rate or gain
+                                changes applied after synthesis.
+                            </p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="demo">
+                <div class="shell">
+                    <div class="section-head reveal">
+                        <p class="eyebrow">Live demo</p>
+                        <h2>Try it in the browser.</h2>
+                        <p class="lead">
+                            Record, transcribe, speak and clone a voice. The
+                            first run downloads the model you pick.
+                        </p>
+                        <p class="fine">
+                            Prefer a clean page?
+                            <a
+                                href="demo.html"
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                Open the standalone demo
+                            </a>
+                            .
+                        </p>
+                    </div>
+                    <div class="demo-grid">
+                        <article class="card demo-card reveal">
+                            <h3>Speech to text</h3>
+                            <p class="hint">
+                                Whisper base runs locally. The demo uses
+                                <code>Quality.Low</code>, a 59 MB download on
+                                first use. Record from the microphone.
+                            </p>
+                            <textarea
+                                id="transcript"
+                                readonly
+                                placeholder="The transcript appears here."
+                            ></textarea>
+                            <div class="row">
+                                <button id="listen" type="button">
+                                    Start microphone
+                                </button>
+                                <button id="stop" type="button" disabled>
+                                    Stop
+                                </button>
+                            </div>
+                            <progress
+                                id="stt_progress"
+                                max="100"
+                                value="0"
+                            ></progress>
+                            <p id="stt_status" class="status" role="status">
+                                Ready.
+                            </p>
+                        </article>
+
+                        <article class="card demo-card reveal">
+                            <h3>Transcribe file</h3>
+                            <p class="hint">
+                                Pick an audio file and transcribe it with the
+                                same local Whisper base model. The first run
+                                downloads 59 MB.
+                            </p>
+                            <textarea
+                                id="file_transcript"
+                                readonly
+                                placeholder="The transcript appears here."
+                            ></textarea>
+                            <div class="row">
+                                <input
+                                    id="audio_file"
+                                    type="file"
+                                    accept="audio/*"
+                                />
+                                <button id="transcribe_file" type="button">
+                                    Transcribe file
+                                </button>
+                            </div>
+                            <progress
+                                id="file_progress"
+                                max="100"
+                                value="0"
+                            ></progress>
+                            <p id="file_status" class="status" role="status">
+                                Ready.
+                            </p>
+                        </article>
+
+                        <article class="card demo-card reveal">
+                            <h3>Text to speech</h3>
+                            <p class="hint">
+                                Pick a voice, tune the sliders and press Speak.
+                                The first run downloads the voice and keeps it
+                                cached. Pitch and rate apply after synthesis.
+                                Temperature and seed only affect the MOSS
+                                voices.
+                            </p>
+                            <label class="field">
+                                Voice
+                                <select id="voice"></select>
+                            </label>
+                            <label class="field">
+                                Text
+                                <input
+                                    id="text"
+                                    type="text"
+                                    value="Hi, this is a voice preview. Ha ha ha!"
+                                />
+                            </label>
+                            <div class="sliders">
+                                <label class="slider">
+                                    Pitch (semitones)
+                                    <span id="pitch_value">0.0</span>
+                                    <input
+                                        id="pitch"
+                                        type="range"
+                                        min="-6"
+                                        max="6"
+                                        step="0.1"
+                                        value="0"
+                                    />
+                                </label>
+                                <label class="slider">
+                                    Rate
+                                    <span id="rate_value">1.00</span>
+                                    <input
+                                        id="rate"
+                                        type="range"
+                                        min="0.5"
+                                        max="1.5"
+                                        step="0.05"
+                                        value="1"
+                                    />
+                                </label>
+                                <label class="slider">
+                                    Gain
+                                    <span id="gain_value">1.00</span>
+                                    <input
+                                        id="gain"
+                                        type="range"
+                                        min="0.2"
+                                        max="2"
+                                        step="0.05"
+                                        value="1"
+                                    />
+                                </label>
+                                <label class="slider">
+                                    Temperature
+                                    <span id="temperature_value">0.80</span>
+                                    <input
+                                        id="temperature"
+                                        type="range"
+                                        min="0.3"
+                                        max="1.5"
+                                        step="0.05"
+                                        value="0.8"
+                                    />
+                                </label>
+                                <label class="slider">
+                                    Seed
+                                    <span id="seed_value">0</span>
+                                    <input
+                                        id="seed"
+                                        type="range"
+                                        min="0"
+                                        max="9999"
+                                        step="1"
+                                        value="0"
+                                    />
+                                </label>
+                            </div>
+                            <div class="row">
+                                <button id="speak" type="button">Speak</button>
+                            </div>
+                            <progress id="progress" max="100" value="0"></progress>
+                            <p id="status" class="status" role="status">
+                                Ready.
+                            </p>
+                            <audio id="playback" controls></audio>
+                        </article>
+
+                        <article class="card demo-card reveal">
+                            <h3>Voice cloning</h3>
+                            <p class="hint">
+                                Record a short reference from the microphone.
+                                Replay it in the player below. The first run
+                                downloads the 45 MB MOSS encoder. The recording
+                                joins the voice list as Cloned Voice, ready for
+                                the next Speak.
+                            </p>
+                            <div class="row">
+                                <button id="record_clone" type="button">
+                                    Record reference
+                                </button>
+                                <button
+                                    id="clear_clone"
+                                    type="button"
+                                    disabled
+                                >
+                                    Clear reference
+                                </button>
+                            </div>
+                            <audio id="reference_playback" controls></audio>
+                            <progress
+                                id="clone_progress"
+                                max="100"
+                                value="0"
+                            ></progress>
+                            <p
+                                id="clone_status"
+                                class="status"
+                                role="status"
+                            >
+                                No reference recorded.
+                            </p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section band" id="case-study">
+                <div class="shell case-grid">
+                    <div class="case-copy reveal">
+                        <p class="eyebrow">Case study</p>
+                        <div class="case-lockup">
+                            <img
+                                src="dolisty-logo.svg"
+                                alt="DoListy logo"
+                                width="38"
+                                height="38"
+                            />
+                            <span>DoListy</span>
+                        </div>
+                        <h2>Task capture stays private.</h2>
+                        <p class="lead">
+                            DoListy is a to-do list with no signup and a
+                            privacy-first design. It uses
+                            <code>@degreesign/voice</code> for task dictation
+                            and voice notes, so spoken tasks become text on the
+                            device.
+                        </p>
+                        <ul class="case-points">
+                            <li>
+                                <span>Dictate</span>
+                                Speak a task and watch the live partial text
+                                appear.
+                            </li>
+                            <li>
+                                <span>Stay local</span>
+                                Audio and text stay in the browser. No account,
+                                no upload.
+                            </li>
+                            <li>
+                                <span>Reuse</span>
+                                One controller drives the microphone, worker
+                                and pause state.
+                            </li>
+                        </ul>
+                        <div class="case-actions">
+                            <a
+                                class="button case-button"
+                                href="https://dolisty.com"
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                Visit DoListy
+                                <span aria-hidden="true">&rarr;</span>
+                            </a>
+                            <span class="case-meta">
+                                Designed by DegreeSign
+                            </span>
+                        </div>
+                    </div>
+                    <div class="case-visual reveal">
+                        <figure class="case-shot case-shot-main">
+                            <img
+                                src="dolisty-dictating-live.png"
+                                alt="DoListy new task with live dictation active"
+                                width="800"
+                                height="560"
+                                loading="lazy"
+                            />
+                            <figcaption>
+                                New task, dictation in progress.
+                            </figcaption>
+                        </figure>
+                        <figure class="case-shot case-shot-secondary">
+                            <img
+                                src="dolisty-transcribed-tasks.png"
+                                alt="DoListy task list with the transcribed task saved"
+                                width="800"
+                                height="340"
+                                loading="lazy"
+                            />
+                            <figcaption>
+                                Transcribed and saved on device.
+                            </figcaption>
+                        </figure>
+                        <p class="case-shot-note">
+                            Screenshots from dolisty.com
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="models">
+                <div class="shell">
+                    <div class="section-head reveal">
+                        <p class="eyebrow">Models</p>
+                        <h2>Small enough to ship, sharp enough to use.</h2>
+                        <p class="lead">
+                            Pick a quality for the download you can afford.
+                            Quantized weights dequantize once, then share the
+                            same decode path.
+                        </p>
+                    </div>
+                    <div class="model-grid">
+                        <article class="model-card reveal">
+                            <div class="model-top">
+                                <h3>Whisper base</h3>
+                                <span class="badge">speech to text</span>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Quality</th>
+                                        <th scope="col">Weights</th>
+                                        <th scope="col">Size</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>High</td>
+                                        <td>F16</td>
+                                        <td>151 MB</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Medium</td>
+                                        <td>Q8_0</td>
+                                        <td>85 MB</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Low</td>
+                                        <td>Q4_K_M</td>
+                                        <td>59 MB</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p class="fine">
+                                Multilingual by default. Set
+                                <code>Language.en</code> for the English only
+                                base.en checkpoint at the same sizes.
+                            </p>
+                        </article>
+                        <article class="model-card reveal">
+                            <div class="model-top">
+                                <h3>MOSS TTS Nano</h3>
+                                <span class="badge">text to speech</span>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Voice</th>
+                                        <th scope="col">Id</th>
+                                        <th scope="col">Output</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Female</td>
+                                        <td><code>female</code></td>
+                                        <td>48 kHz</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Male</td>
+                                        <td><code>male</code></td>
+                                        <td>48 kHz</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p class="fine">
+                                About 133 MB per voice. The clone encoder adds
+                                45 MB and stays resident after the first use.
+                            </p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section dark" id="architecture">
+                <div class="shell arch-grid">
+                    <div class="arch-copy reveal">
+                        <p class="eyebrow">Architecture</p>
+                        <h2>Every call has a place.</h2>
+                        <p class="lead">
+                            Trace the package from the public entry through the
+                            model family, the tensor runtime, the platform
+                            stores and the audio input. The full map is one
+                            offline HTML file with a panel for following a
+                            call.
+                        </p>
+                        <ul class="arch-points">
+                            <li>
+                                <span>01</span>
+                                Public entry and typed API
+                            </li>
+                            <li>
+                                <span>02</span>
+                                Whisper and MOSS model families
+                            </li>
+                            <li>
+                                <span>03</span>
+                                WebAssembly kernels and tensor cache
+                            </li>
+                            <li>
+                                <span>04</span>
+                                Cache, storage and audio input
+                            </li>
+                        </ul>
+                        <a
+                            class="button primary arch-button"
+                            href="architecture.html"
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            Open the full architecture
+                            <span aria-hidden="true">&rarr;</span>
+                        </a>
+                        <p class="arch-note">
+                            Opens in a new tab. One self-contained HTML file.
+                            <a
+                                href="https://github.com/DegreeSign/ds_voice"
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                Browse the source
+                            </a>
+                            .
+                        </p>
+                    </div>
+                    <a
+                        class="arch-preview reveal"
+                        href="architecture.html"
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="Open the full architecture in a new tab"
+                    >
+                        <div class="arch-preview-top">
+                            <span class="arch-dot" aria-hidden="true"></span>
+                            <span>code structure</span>
+                            <span>full map</span>
+                        </div>
+                        <div class="arch-bands">
+                            <div class="arch-band">
+                                <span>Public entry</span>
+                                <small>
+                                    transcribe / synthesize / cloneVoice
+                                </small>
+                            </div>
+                            <div class="arch-band">
+                                <span>Model family</span>
+                                <small>Whisper base / MOSS TTS Nano</small>
+                            </div>
+                            <div class="arch-band">
+                                <span>Tensor runtime</span>
+                                <small>WebAssembly SIMD / F32 cache</small>
+                            </div>
+                            <div class="arch-band">
+                                <span>Platform stores</span>
+                                <small>
+                                    @degreesign/cache /
+                                    @degreesign/storage
+                                </small>
+                            </div>
+                            <div class="arch-band">
+                                <span>Audio input</span>
+                                <small>microphone / file / URL / PCM</small>
+                            </div>
+                        </div>
+                        <div class="arch-preview-foot">
+                            <span>Open full architecture</span>
+                            <span aria-hidden="true">&rarr;</span>
+                        </div>
+                    </a>
+                </div>
+            </section>
+
+            <section class="section" id="install">
+                <div class="shell install-grid">
+                    <div class="reveal">
+                        <p class="eyebrow">Install</p>
+                        <h2>Add it to your project.</h2>
+                        <p class="lead">
+                            One package for both directions. Node 24 or newer,
+                            or load the browser bundle straight from a CDN.
+                        </p>
+                        <div class="cmd">
+                            <code>npm install @degreesign/voice</code>
+                            <button
+                                type="button"
+                                data-copy="npm install @degreesign/voice"
+                            >
+                                Copy
+                            </button>
+                        </div>
+                        <p class="fine">
+                            The dictation controller lives at
+                            <code>@degreesign/voice/dictation</code>.
+                        </p>
+                    </div>
+                    <pre class="code reveal"><code><span class="tok-key">import</span> {
+    <span class="tok-var">Language</span>,
+    <span class="tok-var">transcribe</span>,
+} <span class="tok-key">from</span> <span class="tok-str">"@degreesign/voice"</span>;
+
+<span class="tok-key">const</span> session = <span class="tok-fn">transcribe</span>({
+    language: <span class="tok-var">Language</span>.auto,
+});
+<span class="tok-key">const</span> result = <span class="tok-key">await</span> session.done;
+
+console.<span class="tok-fn">log</span>(result.text, result.meta.rtf);</code></pre>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <div class="shell footer-inner">
+                <div>
+                    <a class="brand" href="#top">@degreesign/voice</a>
+                    <p>
+                        Offline speech to text, text to speech and voice
+                        cloning.
+                    </p>
+                </div>
+                <div class="footer-links">
+                    <a href="#demo">Demo</a>
+                    <a
+                        href="architecture.html"
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        Architecture
+                    </a>
+                    <a
+                        href="https://github.com/DegreeSign/ds_voice"
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        GitHub
+                    </a>
+                    <a
+                        href="https://www.npmjs.com/package/@degreesign/voice"
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        npm
+                    </a>
+                </div>
+            </div>
+            <div class="shell footer-base">
+                <span>v2.4.1</span>
+                <span>MIT runtime &middot; Apache-2.0 weights</span>
+            </div>
+        </footer>
+
+        <nav class="floating-menu" aria-label="Primary">
+            <div class="floating-track">
+                <a
+                    class="float-button is-selected"
+                    href="#top"
+                    data-target="#top"
+                    aria-current="page"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        aria-hidden="true"
+                    >
+                        <path d="M4 12h2M8 7v10M12 4v16M16 8v8M20 11v2" />
+                    </svg>
+                    <span class="float-label">Overview</span>
+                </a>
+                <a
+                    class="float-button"
+                    href="#capabilities"
+                    data-target="#capabilities"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                    </svg>
+                    <span class="float-label">Capabilities</span>
+                </a>
+                <a
+                    class="float-button"
+                    href="#pipeline"
+                    data-target="#pipeline"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <circle cx="5" cy="12" r="2" />
+                        <circle cx="19" cy="12" r="2" />
+                        <path d="M7 12h10" />
+                    </svg>
+                    <span class="float-label">Pipeline</span>
+                </a>
+                <a class="float-button" href="#demo" data-target="#demo">
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="m10 8 6 4-6 4V8z" />
+                    </svg>
+                    <span class="float-label">Demo</span>
+                </a>
+                <a
+                    class="float-button"
+                    href="#case-study"
+                    data-target="#case-study"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-4-.9
+                               L3 21l1.9-5.1a8.4 8.4 0 0 1-.9-4 8.4 8.4 0 0
+                               1 8.4-8.4 8.4 8.4 0 0 1 8.6 8z"
+                        />
+                        <path d="m9 11 2 2 4-4" />
+                    </svg>
+                    <span class="float-label">Case study</span>
+                </a>
+                <a class="float-button" href="#models" data-target="#models">
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <path d="m12 3 9 5-9 5-9-5 9-5z" />
+                        <path d="m3 13 9 5 9-5" />
+                    </svg>
+                    <span class="float-label">Models</span>
+                </a>
+                <a
+                    class="float-button"
+                    href="#architecture"
+                    data-target="#architecture"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <rect x="3" y="3" width="7" height="7" rx="1" />
+                        <rect x="14" y="14" width="7" height="7" rx="1" />
+                        <path d="M10 6h4a4 4 0 0 1 4 4v4" />
+                    </svg>
+                    <span class="float-label">Architecture</span>
+                </a>
+                <a
+                    class="float-button"
+                    href="#install"
+                    data-target="#install"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <path d="M12 3v12" />
+                        <path d="m7 10 5 5 5-5" />
+                        <path d="M5 21h14" />
+                    </svg>
+                    <span class="float-label">Install</span>
+                </a>
+            </div>
+        </nav>
+
+        <script>
+            (() => {
+                const reduce = window.matchMedia(
+                    "(prefers-reduced-motion: reduce)",
+                ).matches;
+
+                /* Reveal sections as they enter the viewport. */
+                const reveals = [...document.querySelectorAll(".reveal")];
+                if (reduce || !("IntersectionObserver" in window)) {
+                    for (const element of reveals) {
+                        element.classList.add("in");
+                    }
+                } else {
+                    const observer = new IntersectionObserver((entries) => {
+                        for (const entry of entries) {
+                            if (!entry.isIntersecting) {
+                                continue;
+                            }
+                            entry.target.classList.add("in");
+                            observer.unobserve(entry.target);
+                        }
+                    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
+                    for (const element of reveals) {
+                        observer.observe(element);
+                    }
+                }
+
+                /* Console preview and animated waveform. */
+                const MODES = {
+                    transcribe: {
+                        label: "whisper base / listening",
+                        text: "Every word stays on this device.",
+                        chips: ["16 kHz mono", "streaming"],
+                        from: "#5eead4",
+                        to: "#38bdf8",
+                    },
+                    speak: {
+                        label: "moss tts / 48 khz",
+                        text: "Hi, this is a voice preview. Ha ha ha!",
+                        chips: ["20 languages", "48 kHz"],
+                        from: "#a7f3d0",
+                        to: "#818cf8",
+                    },
+                    clone: {
+                        label: "moss clone / reference",
+                        text: "Three seconds is enough.",
+                        chips: ["3 s reference", "45 MB encoder"],
+                        from: "#fcd34d",
+                        to: "#f472b6",
+                    },
+                };
+                const
+                    consoleBox = document.querySelector(".console"),
+                    modeLabel = document.getElementById("console-mode"),
+                    consoleText = document.getElementById("console-text"),
+                    chipOne = document.getElementById("console-chip-1"),
+                    chipTwo = document.getElementById("console-chip-2"),
+                    tabs = [...document.querySelectorAll(".console-tabs button")],
+                    canvas = document.getElementById("wave"),
+                    context = canvas.getContext("2d");
+                let
+                    from = MODES.transcribe.from,
+                    to = MODES.transcribe.to,
+                    phase = 0,
+                    frame = 0,
+                    running = false;
+
+                const bar = (x, y, width, height) => {
+                    if (typeof context.roundRect === "function") {
+                        context.beginPath();
+                        context.roundRect(x, y, width, height, width / 2);
+                        context.fill();
+                        return;
+                    }
+                    context.fillRect(x, y, width, height);
+                };
+
+                const draw = () => {
+                    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                    const width = canvas.clientWidth;
+                    const height = canvas.clientHeight;
+                    if (!width || !height) {
+                        return;
+                    }
+                    if (
+                        canvas.width !== Math.round(width * dpr)
+                        || canvas.height !== Math.round(height * dpr)
+                    ) {
+                        canvas.width = Math.round(width * dpr);
+                        canvas.height = Math.round(height * dpr);
+                    }
+                    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+                    context.clearRect(0, 0, width, height);
+                    const
+                        barWidth = 3,
+                        gap = 6,
+                        count = Math.max(1, Math.floor(width / (barWidth + gap))),
+                        total = count * (barWidth + gap) - gap,
+                        start = (width - total) / 2,
+                        middle = height / 2,
+                        gradient = context.createLinearGradient(0, 0, width, 0);
+                    gradient.addColorStop(0, from);
+                    gradient.addColorStop(1, to);
+                    context.fillStyle = gradient;
+                    for (let index = 0; index < count; index += 1) {
+                        const
+                            position = index / count,
+                            envelope = Math.sin(Math.PI * position) ** 0.6,
+                            first = Math.sin(index * 0.42 + phase * 1.7),
+                            second = Math.sin(index * 0.13 - phase * 0.9),
+                            amplitude =
+                                (0.18 + 0.82 * Math.abs(first * second))
+                                * envelope,
+                            barHeight = Math.max(3, amplitude * height * 0.82),
+                            x = start + index * (barWidth + gap);
+                        bar(x, middle - barHeight / 2, barWidth, barHeight);
+                    }
+                };
+
+                const animate = () => {
+                    draw();
+                    phase += 0.025;
+                    running = true;
+                    frame = window.requestAnimationFrame(animate);
+                };
+
+                if (reduce) {
+                    draw();
+                    window.addEventListener("resize", draw);
+                } else {
+                    animate();
+                }
+
+                const setMode = (name) => {
+                    const mode = MODES[name];
+                    if (!mode) {
+                        return;
+                    }
+                    from = mode.from;
+                    to = mode.to;
+                    consoleBox.dataset.mode = name;
+                    modeLabel.textContent = mode.label;
+                    consoleText.textContent = mode.text;
+                    chipOne.textContent = mode.chips[0];
+                    chipTwo.textContent = mode.chips[1];
+                    for (const tab of tabs) {
+                        tab.setAttribute(
+                            "aria-selected",
+                            String(tab.dataset.mode === name),
+                        );
+                    }
+                    if (reduce) {
+                        draw();
+                    }
+                };
+
+                for (const tab of tabs) {
+                    tab.addEventListener("click", () => {
+                        setMode(tab.dataset.mode);
+                    });
+                }
+
+                document.addEventListener("visibilitychange", () => {
+                    if (reduce) {
+                        return;
+                    }
+                    if (document.hidden) {
+                        window.cancelAnimationFrame(frame);
+                        running = false;
+                        return;
+                    }
+                    if (!running) {
+                        animate();
+                    }
+                });
+
+                /* Floating menu selection and centering. */
+                const
+                    menu = document.querySelector(".floating-menu"),
+                    floatLinks = [
+                        ...document.querySelectorAll(
+                            ".float-button[data-target]",
+                        ),
+                    ],
+                    floatSections = floatLinks
+                        .map((link) => ({
+                            link,
+                            section: document.querySelector(
+                                link.dataset.target,
+                            ),
+                        }))
+                        .filter((item) => item.section);
+                let activeLink = null;
+
+                const centerFloat = (link) => {
+                    if (!menu || !link) {
+                        return;
+                    }
+                    const
+                        menuRect = menu.getBoundingClientRect(),
+                        linkRect = link.getBoundingClientRect();
+                    menu.scrollTo({
+                        left: linkRect.left - menuRect.left + menu.scrollLeft
+                            - (menuRect.width - linkRect.width) / 2,
+                        behavior: reduce ? "auto" : "smooth",
+                    });
+                };
+
+                const setFloatActive = (link) => {
+                    if (link === activeLink) {
+                        return;
+                    }
+                    activeLink = link;
+                    for (const item of floatLinks) {
+                        const selected = item === link;
+                        item.classList.toggle("is-selected", selected);
+                        if (selected) {
+                            item.setAttribute("aria-current", "page");
+                        } else {
+                            item.removeAttribute("aria-current");
+                        }
+                    }
+                    centerFloat(link);
+                };
+
+                const updateFloat = () => {
+                    const probe =
+                        window.scrollY + window.innerHeight * 0.35;
+                    let current = floatSections[0];
+                    for (const item of floatSections) {
+                        const top =
+                            item.section.getBoundingClientRect().top
+                            + window.scrollY;
+                        if (top <= probe) {
+                            current = item;
+                        }
+                    }
+                    if (current) {
+                        setFloatActive(current.link);
+                    }
+                };
+
+                if (floatSections.length) {
+                    updateFloat();
+                    window.addEventListener("scroll", updateFloat, {
+                        passive: true,
+                    });
+                    window.addEventListener("resize", () => {
+                        centerFloat(activeLink);
+                    });
+                    for (const link of floatLinks) {
+                        link.addEventListener("click", () => {
+                            setFloatActive(link);
+                        });
+                    }
+                }
+
+                /* Copy install command. */
+                for (const button of document.querySelectorAll("[data-copy]")) {
+                    button.addEventListener("click", async () => {
+                        const text = button.dataset.copy;
+                        try {
+                            await navigator.clipboard.writeText(text);
+                            button.textContent = "Copied";
+                        } catch (error) {
+                            const code =
+                                button.parentElement.querySelector("code");
+                            if (code) {
+                                const range = document.createRange();
+                                range.selectNodeContents(code);
+                                const selection = window.getSelection();
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                            }
+                            button.textContent = "Select and copy";
+                        }
+                        window.setTimeout(() => {
+                            button.textContent = "Copy";
+                        }, 1600);
+                    });
+                }
+            })();
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/@degreesign/voice@latest/dist/browser/degreesign.min.js"></script>
+        <script src="demo.js"></script>
+    </body>
+</html>

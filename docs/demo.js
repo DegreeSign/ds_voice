@@ -8,17 +8,21 @@ const
     transcribeFileButton = document.getElementById("transcribe_file"),
     sttProgress = document.getElementById("stt_progress"),
     sttStatus = document.getElementById("stt_status"),
+    fileTranscript = document.getElementById("file_transcript"),
+    fileProgress = document.getElementById("file_progress"),
+    fileStatus = document.getElementById("file_status"),
     voiceSelect = document.getElementById("voice"),
     textInput = document.getElementById("text"),
-    useClone = document.getElementById("use_clone"),
     speakButton = document.getElementById("speak"),
     progress = document.getElementById("progress"),
     status = document.getElementById("status"),
     playback = document.getElementById("playback"),
     recordCloneButton = document.getElementById("record_clone"),
+    referencePlayback = document.getElementById("reference_playback"),
     clearCloneButton = document.getElementById("clear_clone"),
     cloneProgress = document.getElementById("clone_progress"),
     cloneStatus = document.getElementById("clone_status"),
+    CLONE_VOICE = "cloned",
     SLIDERS = [
         { input: "pitch", output: "pitch_value", digits: 1 },
         { input: "rate", output: "rate_value", digits: 2 },
@@ -36,13 +40,22 @@ const
             temperature: 0.8,
             seed: 0,
         },
+        [CLONE_VOICE]: {
+            pitch: 0,
+            rate: 1,
+            gain: 2,
+            temperature: 0.8,
+            seed: 0,
+        },
     };
 let
     playbackUrl = "",
+    referenceUrl = "",
     lastProgressAt = 0,
     synthesizing = false,
     session = null,
     cloned = null,
+    referenceAudio = null,
     poll = 0;
 
 /** Stop the live transcript poll. */
@@ -55,52 +68,59 @@ const stopPoll = () => {
 };
 
 /** Set the speech to text controls for one busy state. */
-const setSttBusy = (busy) => {
+const setSttBusy = (busy, stoppable = false) => {
     listenButton.disabled = busy;
     transcribeFileButton.disabled = busy;
-    stopButton.disabled = !busy;
+    audioInput.disabled = busy;
+    stopButton.disabled = !busy || !stoppable;
 };
 
-/** Show one download or decode update. */
+/** Show one microphone download or decode update. */
 const showSttProgress = (update) => {
     sttProgress.value = Math.round(update.ratio * 100);
     sttStatus.textContent = `${update.phase} ${sttProgress.value}%`;
 };
 
+/** Show one file download or decode update. */
+const showFileProgress = (update) => {
+    fileProgress.value = Math.round(update.ratio * 100);
+    fileStatus.textContent = `${update.phase} ${fileProgress.value}%`;
+};
+
 /** Follow one session until its transcript arrives. */
-const followSession = async ({ label, create }) => {
+const followSession = async ({ label, create, view, stoppable = false }) => {
     if (!engine?.transcribe) {
-        sttStatus.textContent = "The speech bundle is not loaded.";
+        view.status.textContent = "The speech bundle is not loaded.";
         return;
     }
-    setSttBusy(true);
-    transcript.value = "";
-    sttProgress.value = 0;
-    sttStatus.textContent = `Starting ${label}...`;
+    setSttBusy(true, stoppable);
+    view.transcript.value = "";
+    view.progress.value = 0;
+    view.status.textContent = `Starting ${label}...`;
     stopPoll();
     const active = create();
     session = active;
     poll = window.setInterval(() => {
         const live = active.fullText();
         if (live.text) {
-            transcript.value = live.text;
+            view.transcript.value = live.text;
         }
         if (live.msElapsed > 0) {
-            sttStatus.textContent = `Decoding ${(
+            view.status.textContent = `Decoding ${(
                 live.msElapsed / 1000
             ).toFixed(1)} s`;
         }
     }, 200);
     try {
         const result = await active.done;
-        transcript.value = result.text;
+        view.transcript.value = result.text;
         const seconds = result.duration.toFixed(1);
-        sttStatus.textContent = result.text
+        view.status.textContent = result.text
             ? `${label} done. ${seconds} s of audio.`
             : `${label} done. No speech detected.`;
-        sttProgress.value = 100;
+        view.progress.value = 100;
     } catch (error) {
-        sttStatus.textContent = `Failed: ${error?.message ?? error}`;
+        view.status.textContent = `Failed: ${error?.message ?? error}`;
     } finally {
         stopPoll();
         if (session === active) {
@@ -114,6 +134,12 @@ const followSession = async ({ label, create }) => {
 const startListening = () => {
     void followSession({
         label: "microphone",
+        stoppable: true,
+        view: {
+            transcript,
+            progress: sttProgress,
+            status: sttStatus,
+        },
         create: () => engine.transcribe({
             model: engine.ModelId.WhisperBase,
             language: engine.Language.auto,
@@ -127,17 +153,22 @@ const startListening = () => {
 const startFile = () => {
     const file = audioInput.files?.[0];
     if (!file) {
-        sttStatus.textContent = "Pick an audio file first.";
+        fileStatus.textContent = "Pick an audio file first.";
         return;
     }
     void followSession({
         label: "file",
+        view: {
+            transcript: fileTranscript,
+            progress: fileProgress,
+            status: fileStatus,
+        },
         create: () => engine.transcribe({
             audioFilePath: file,
             model: engine.ModelId.WhisperBase,
             language: engine.Language.auto,
             quality: engine.Quality.Low,
-            onProgress: showSttProgress,
+            onProgress: showFileProgress,
         }),
     });
 };
@@ -170,7 +201,38 @@ const fillVoices = () => {
 };
 
 /** True when the selected voice uses MOSS. */
-const isMoss = () => engine?.getVoiceSpec?.(voiceSelect.value)?.family === "moss";
+const isMoss = () => voiceSelect.value === CLONE_VOICE
+    || engine?.getVoiceSpec?.(voiceSelect.value)?.family === "moss";
+
+/** Add the cloned voice option once a reference exists. */
+const addClonedVoice = () => {
+    const exists = [...voiceSelect.options]
+        .some((option) => option.value === CLONE_VOICE);
+    if (exists) {
+        return;
+    }
+    const option = document.createElement("option");
+    option.value = CLONE_VOICE;
+    option.textContent = "Cloned Voice";
+    voiceSelect.append(option);
+};
+
+/** Drop the cloned voice option and fall back to the first voice. */
+const removeClonedVoice = () => {
+    const option = [...voiceSelect.options]
+        .find((item) => item.value === CLONE_VOICE);
+    if (!option) {
+        return;
+    }
+    const selected = voiceSelect.value === CLONE_VOICE;
+    option.remove();
+    if (!selected || !voiceSelect.options[0]) {
+        return;
+    }
+    voiceSelect.value = voiceSelect.options[0].value;
+    applyDefaults(voiceSelect.value);
+    updateControls();
+};
 
 /** Disable the MOSS-only controls for the other engines. */
 const updateControls = () => {
@@ -247,23 +309,81 @@ const wavBytes = (audio) => {
     return out;
 };
 
-/** Play one rendered clip. */
-const play = (audio) => {
+/** Put one clip into one player and return its URL. */
+const loadIn = ({ player, audio, previous }) => {
     const url = URL.createObjectURL(
         new Blob([wavBytes(audio)], { type: "audio/wav" }),
     );
-    if (playbackUrl) {
-        URL.revokeObjectURL(playbackUrl);
+    if (previous) {
+        URL.revokeObjectURL(previous);
     }
-    playbackUrl = url;
-    playback.src = url;
+    player.src = url;
+    return url;
+};
+
+/** Play one rendered clip. */
+const play = (audio) => {
+    playbackUrl = loadIn({
+        player: playback,
+        audio,
+        previous: playbackUrl,
+    });
     void playback.play().catch(() => undefined);
+};
+
+/** Record one microphone clip for playback. */
+const recordReference = async (durationMs) => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Microphone unavailable");
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+    });
+    const chunks = [];
+    const recorder = new MediaRecorder(stream);
+    const stopped = new Promise((resolve) => {
+        recorder.onstop = resolve;
+    });
+    recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+            chunks.push(event.data);
+        }
+    };
+    recorder.start();
+    await new Promise((resolve) => {
+        setTimeout(resolve, durationMs);
+    });
+    recorder.stop();
+    await stopped;
+    for (const track of stream.getTracks()) {
+        track.stop();
+    }
+    return new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+};
+
+/** Decode one microphone clip into 48 kHz mono PCM. */
+const decodeReference = async (blob) => {
+    const context = new AudioContext({ sampleRate: 48000 });
+    const bytes = await blob.arrayBuffer();
+    const buffer = await context.decodeAudioData(bytes);
+    const pcm = buffer.getChannelData(0).slice();
+    await context.close();
+    return { pcm, sampleRate: buffer.sampleRate };
 };
 
 /** Set the clone controls for one busy state. */
 const setCloneBusy = (busy) => {
     recordCloneButton.disabled = busy;
     clearCloneButton.disabled = busy || !cloned;
+};
+
+/** Show one recorded reference in its own player. */
+const showReference = (audio) => {
+    referenceUrl = loadIn({
+        player: referencePlayback,
+        audio,
+        previous: referenceUrl,
+    });
 };
 
 /** Record a reference and keep its codes for synthesis. */
@@ -276,8 +396,13 @@ const recordClone = async () => {
     cloneProgress.value = 0;
     cloneStatus.textContent = "Recording 3 s from the microphone...";
     try {
+        const recording = await recordReference(3000);
+        const decoded = await decodeReference(recording);
+        referenceAudio = decoded;
+        showReference(decoded);
         cloned = await engine.cloneVoice({
-            durationMs: 3000,
+            pcm: decoded.pcm,
+            sampleRate: decoded.sampleRate,
             onProgress: (update) => {
                 const name = update.file || "encoder";
                 cloneProgress.value = Math.round(update.ratio * 100);
@@ -285,15 +410,16 @@ const recordClone = async () => {
                     `${update.phase} ${name} ${cloneProgress.value}%`;
             },
         });
-        useClone.checked = true;
-        useClone.disabled = false;
+        addClonedVoice();
+        voiceSelect.value = CLONE_VOICE;
+        applyDefaults(CLONE_VOICE);
+        updateControls();
         cloneProgress.value = 100;
-        cloneStatus.textContent =
-            `Reference ready. ${cloned.frames} frames.`;
+        cloneStatus.textContent = `Reference ready. ${cloned.frames} frames. `
+            + "Cloned Voice is selected.";
+        void speak();
     } catch (error) {
         const reason = error?.message ?? error;
-        useClone.checked = cloned !== null;
-        useClone.disabled = cloned === null;
         cloneProgress.value = 0;
         cloneStatus.textContent = cloned
             ? `Failed: ${reason}. Previous reference kept.`
@@ -306,8 +432,14 @@ const recordClone = async () => {
 /** Drop the recorded reference. */
 const clearClone = () => {
     cloned = null;
-    useClone.checked = false;
-    useClone.disabled = true;
+    referenceAudio = null;
+    if (referenceUrl) {
+        URL.revokeObjectURL(referenceUrl);
+        referenceUrl = "";
+    }
+    referencePlayback.removeAttribute("src");
+    referencePlayback.load();
+    removeClonedVoice();
     cloneProgress.value = 0;
     cloneStatus.textContent = "No reference recorded.";
     clearCloneButton.disabled = true;
@@ -322,6 +454,11 @@ const speak = async () => {
     }
     if (!engine?.synthesize) {
         status.textContent = "The voice bundle is not loaded.";
+        return;
+    }
+    const clonedVoice = voiceSelect.value === CLONE_VOICE;
+    if (clonedVoice && !cloned) {
+        status.textContent = "Record a reference first.";
         return;
     }
     const started = performance.now();
@@ -340,10 +477,10 @@ const speak = async () => {
             status.textContent = `Synthesizing... ${seconds} s`;
         }
     }, 500);
-    const reference = useClone.checked ? cloned?.codes : undefined;
+    const reference = clonedVoice ? cloned?.codes : undefined;
     try {
         const audio = await engine.synthesize({
-            voice: voiceSelect.value,
+            voice: clonedVoice ? engine.VoiceId.Female : voiceSelect.value,
             text,
             reference,
             pitch: readNumber("pitch"),
@@ -377,6 +514,7 @@ const speak = async () => {
 
 if (!engine) {
     sttStatus.textContent = "The speech bundle did not load.";
+    fileStatus.textContent = "The speech bundle did not load.";
     status.textContent = "The voice bundle did not load.";
     cloneStatus.textContent = "The voice bundle did not load.";
 }

@@ -72,7 +72,7 @@ Build from source with `yarn build` and typecheck with `yarn typecheck`.
 ### CDN
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@degreesign/voice/dist/browser/degreesign.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@degreesign/voice@latest/dist/browser/degreesign.min.js"></script>
 ```
 
 Try the [live speech demo](https://degreesign.github.io/ds_voice/demo.html)
@@ -83,7 +83,7 @@ before installing. It runs speech to text and text to speech in the browser.
 ### Browser microphone
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@degreesign/voice/dist/browser/degreesign.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@degreesign/voice@latest/dist/browser/degreesign.min.js"></script>
 <script>
   const { Language, transcribe } = window.dsVoice;
   const session = transcribe({ language: Language.auto });
