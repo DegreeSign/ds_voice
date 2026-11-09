@@ -108,9 +108,33 @@ License. See [LICENSE](LICENSE).
 - Source: https://huggingface.co/ekwek/Soprano-1.1-80M
 - Contents: the `tokenizer.json` used by the `female_2` voice.
 
+### Luigi/MOSS-TTS-Nano-100M-GGUF
+
+- License: Apache License 2.0
+- Sources: https://huggingface.co/Luigi/MOSS-TTS-Nano-100M-GGUF,
+  https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M and
+  https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano
+- Contents: the GGUF conversion of the MOSS-TTS-Nano 100M language model and
+  the MOSS-Audio-Tokenizer-Nano decoder used by the `male_2` voice.
+
+### aoiandroid/moss-tts-nano-onnx-fp32
+
+- License: Apache License 2.0
+- Sources: https://huggingface.co/aoiandroid/moss-tts-nano-onnx-fp32 and
+  https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M
+- Contents: the `tokenizer.json` conversion of the SentencePiece tokenizer used
+  by the `male_2` voice.
+
+### Bundled male_2 reference codes
+
+- License: Apache License 2.0
+- Source: the generated `male_1` preview included in this package.
+- Contents: the MOSS audio tokenizer codes of that clip, used to keep the
+  `male_2` voice consistent without downloading a reference recording.
+
 ### Bundled voice previews
 
-The three preview clips under `src/assets/voices` were synthesized from the
+The four preview clips under `src/assets/voices` were synthesized from the
 models above with the fixed line held in `src/speech/voices.ts`. They contain
 no upstream audio recordings and are generated output of the listed weights.
 

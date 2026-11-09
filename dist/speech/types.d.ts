@@ -2,11 +2,13 @@ import { ProgressPhase } from "../tensor/core/types";
 /** Voice choices in the bundled library. */
 export declare enum VoiceId {
     /** Kokoro-82M, American English female. */
-    Female1 = "female_1",
+    Female = "female_1",
     /** Soprano-1.1-80M, English female. */
     Female2 = "female_2",
     /** Qwen3-TTS 0.6B, English male. */
-    Male = "male_1"
+    Male = "male_1",
+    /** MOSS-TTS-Nano 100M, multilingual default speaker. */
+    Male2 = "male_2"
 }
 /** Gender label of a library voice. */
 export declare enum VoiceGender {
@@ -17,7 +19,8 @@ export declare enum VoiceGender {
 export declare enum VoiceFamily {
     Kokoro = "kokoro",
     Soprano = "soprano",
-    Qwen3Tts = "qwen3-tts"
+    Qwen3Tts = "qwen3-tts",
+    Moss = "moss"
 }
 /** One file of a voice model, downloaded on first use. */
 export interface VoiceFile {

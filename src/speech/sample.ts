@@ -1,14 +1,15 @@
 // Decode the bundled voice preview clips on demand.
-import { female_1, female_2, male_1 } from "./samples";
+import { female_1, female_2, male_1, male_2 } from "./samples";
 import { getVoiceSpec } from "./voices";
 import { VoiceId } from "./types";
 import type { VoiceSample } from "./types";
 const
     /** Base64 clip of every voice. */
     CLIPS: Record<VoiceId, string> = {
-        [VoiceId.Female1]: female_1,
+        [VoiceId.Female]: female_1,
         [VoiceId.Female2]: female_2,
         [VoiceId.Male]: male_1,
+        [VoiceId.Male2]: male_2,
     },
     /** Decoded clips, filled on first use. */
     cache = new Map<VoiceId, Uint8Array>(),

@@ -9,6 +9,7 @@ const
         ["female_1", "female_1.wav", "Female 1 preview"],
         ["female_2", "female_2.wav", "Female 2 preview"],
         ["male_1", "male_1.wav", "Male preview"],
+        ["male_2", "male_2.wav", "Male 2 preview"],
     ],
     width = 88,
     wrap = (value) => {
@@ -31,7 +32,7 @@ const
 // model weight is downloaded.
 const
 ${body};
-export { female_1, female_2, male_1 };
+export { female_1, female_2, male_1, male_2 };
 `;
 
 fs.writeFileSync(target, output);

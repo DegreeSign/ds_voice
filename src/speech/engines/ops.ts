@@ -357,6 +357,25 @@ const
                 (1 + Math.tanh(factor * (value + 0.044715 * cube)));
         }
     },
+    /** Error function approximation. */
+    erf = (value: number): number => {
+        const
+            sign = value < 0 ? -1 : 1,
+            x = Math.abs(value),
+            t = 1 / (1 + 0.3275911 * x),
+            poly = t * (0.254829592 + t * (-0.284496736 + t * (
+                1.421413741 + t * (-1.453152027 + t * 1.061405429)
+            )));
+        return sign * (1 - poly * Math.exp(-x * x));
+    },
+    /** GELU with the exact error function, in place. */
+    geluErfInPlace = (values: Float32Array): void => {
+        for (let i = 0; i < values.length; i += 1) {
+            const value = values[i];
+            values[i] = 0.5 * value *
+                (1 + erf(value / Math.SQRT2));
+        }
+    },
     /** Repeat every frame twice, nearest neighbour. */
     upsample2 = (options: {
         input: Float32Array;
@@ -457,6 +476,7 @@ export {
     conv1d,
     convTranspose1d,
     depthwiseConvTranspose1d,
+    geluErfInPlace,
     geluInPlace,
     instanceNorm,
     layerNorm,

@@ -47,6 +47,7 @@ import {
     conv1d,
     convTranspose1d,
     depthwiseConvTranspose1d,
+    geluErfInPlace,
     instanceNorm,
     reflectPadLeft,
     roundHalfEven,
@@ -54,6 +55,9 @@ import {
     upsample2,
 } from "../../src/speech/engines/ops";
 import { phonemizeEnglish } from "../../src/speech/engines/g2p";
+import { createMossTokenizer } from "../../src/speech/engines/mossTokenizer";
+import { decodeMossAudio, loadMossCodec } from "../../src/speech/engines/mossCodec";
+import { MOSS_REFERENCE } from "../../src/speech/engines/mossReference";
 import {
     getBundledVoiceFile,
     isBundledVoiceFile,
@@ -1217,7 +1221,7 @@ const
     /** Expected fields of every library voice. */
     TTS_VOICES: TtsVoiceExpectation[] = [
         {
-            id: VoiceId.Female1,
+            id: VoiceId.Female,
             family: VoiceFamily.Kokoro,
             speaker: "af_heart",
             sampleRate: 24000,
@@ -1233,6 +1237,12 @@ const
             family: VoiceFamily.Kokoro,
             speaker: "am_michael",
             sampleRate: 24000,
+        },
+        {
+            id: VoiceId.Male2,
+            family: VoiceFamily.Moss,
+            speaker: "default",
+            sampleRate: 48000,
         },
     ],
     /** Fixture host for a successful download. */
@@ -4389,7 +4399,7 @@ const definitions: Array<{
             name: "tts/listVoices",
             run: () => {
                 const voices = listVoices();
-                assertEqual(voices.length, TTS_VOICES.length, "three voices");
+                assertEqual(voices.length, TTS_VOICES.length, "four voices");
                 assertEqual(entry.listVoices, listVoices, "one bundle");
                 assertEqual(entry.getVoiceSpec, getVoiceSpec, "one getter");
                 assertEqual(entry.loadVoice, loadVoice, "one loader");
@@ -4483,7 +4493,7 @@ const definitions: Array<{
                 await assertRejects(
                     async () =>
                         await synthesize({
-                            voice: VoiceId.Female1,
+                            voice: VoiceId.Female,
                             text: "Hello.",
                             weightsBaseUrl: TTS_FIXTURES,
                         }),
@@ -4497,11 +4507,94 @@ const definitions: Array<{
                 await assertRejects(
                     async () =>
                         await prepareVoice({
-                            voice: VoiceId.Female1,
+                            voice: VoiceId.Female,
                             weightsBaseUrl: TTS_FIXTURES,
                         }),
                     "not a gguf",
                 );
+            },
+        },
+        {
+            name: "speech/moss tokenizer",
+            run: () => {
+                const tokenizer = createMossTokenizer(JSON.stringify({
+                    model: {
+                        vocab: {
+                            "<unk>": 0,
+                            "<s>": 1,
+                            "</s>": 2,
+                            "<pad>": 3,
+                            "<user_inst>": 4,
+                            "</user_inst>": 5,
+                            "\u2581": 6,
+                            "\u2581a": 7,
+                            "b": 8,
+                            "c": 9,
+                            "<0x0A>": 10,
+                            "<0xC3>": 11,
+                            "<0xA9>": 12,
+                        },
+                        merges: [["\u2581", "a"]],
+                    },
+                }));
+                assertEqual(tokenizer.size, 13, "moss vocab size");
+                assertList(tokenizer.encode(" a"), [7], "moss merge");
+                assertList(tokenizer.encode("ab"), [7, 8], "moss split");
+                assertList(
+                    tokenizer.encode(" \u00e9"),
+                    [6, 11, 12],
+                    "moss byte fallback",
+                );
+                assertList(
+                    tokenizer.encode("<user_inst>"),
+                    [6, 4],
+                    "moss special",
+                );
+                assertEqual(tokenizer.tokenText(7), "\u2581a", "moss piece");
+                assertEqual(tokenizer.decode([7, 8]), "ab", "moss decode");
+                assertEqual(
+                    tokenizer.decode([6, 11, 12]),
+                    "\u00e9",
+                    "moss byte decode",
+                );
+            },
+        },
+        {
+            name: "speech/moss codec",
+            run: () => {
+                assertThrows(
+                    () => loadMossCodec(new Uint8Array(0)),
+                    "too small",
+                );
+                const pcm = decodeMossAudio({
+                    codec: {
+                        outputWeight: new Float32Array(0),
+                        outputBias: new Float32Array(0),
+                        quantizers: [],
+                        stages: new Map(),
+                    },
+                    codes: new Uint16Array(0),
+                    frames: 0,
+                });
+                assertEqual(pcm.length, 0, "moss empty pcm");
+            },
+        },
+        {
+            name: "speech/moss reference",
+            run: () => {
+                assertEqual(MOSS_REFERENCE.length, 42 * 16, "reference size");
+                assertEqual(MOSS_REFERENCE[0], 482, "reference first");
+                assertEqual(MOSS_REFERENCE[15], 49, "reference last");
+            },
+        },
+        {
+            name: "speech/ops gelu erf",
+            run: () => {
+                const values = new Float32Array([0, 1, -1]);
+                geluErfInPlace(values);
+                assertClose(values[0], 0, "gelu erf zero");
+                assertClose(values[1], 0.8413447, "gelu erf one");
+                assertClose(values[2], -0.1586553, "gelu erf minus one");
             },
         },
         {
@@ -4673,11 +4766,11 @@ const definitions: Array<{
         {
             name: "tts/loadVoice rejects",
             run: async () => {
-                await removeVoice(VoiceId.Female1);
+                await removeVoice(VoiceId.Female);
                 await assertRejects(
                     async () =>
                         await loadVoice({
-                            voice: VoiceId.Female1,
+                            voice: VoiceId.Female,
                             weightsBaseUrl: "data:",
                         }),
                     "invalid host",
@@ -4729,22 +4822,22 @@ const
         {
             name: "tts/download recovery",
             run: async () => {
-                await removeVoice(VoiceId.Female1);
+                await removeVoice(VoiceId.Female);
                 await resetTtsStats();
                 await loadVoice({
-                    voice: VoiceId.Female1,
+                    voice: VoiceId.Female,
                     weightsBaseUrl: TTS_FAULTS,
                 });
                 const stats = await ttsStats();
                 assert(stats.faults > 0, "fault injected");
                 assert(stats.requests > stats.faults, "retry after fault");
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female1),
+                    await isVoiceCached(VoiceId.Female),
                     true,
                     "recovered file",
                 );
                 for (const other of TTS_VOICES) {
-                    if (other.id === VoiceId.Female1) {
+                    if (other.id === VoiceId.Female) {
                         continue;
                     }
                     assertEqual(
@@ -4760,12 +4853,12 @@ const
             run: async () => {
                 await resetTtsStats();
                 await loadVoice({
-                    voice: VoiceId.Female1,
+                    voice: VoiceId.Female,
                     weightsBaseUrl: TTS_FIXTURES,
                 });
                 assertEqual((await ttsStats()).requests, 0, "warm requests");
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female1),
+                    await isVoiceCached(VoiceId.Female),
                     true,
                     "warm file",
                 );
@@ -4776,7 +4869,7 @@ const
             run: async () => {
                 await resetTtsStats();
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female1),
+                    await isVoiceCached(VoiceId.Female),
                     true,
                     "cached first",
                 );
@@ -4785,14 +4878,14 @@ const
                     usage: 100,
                     run: async () => {
                         await loadVoice({
-                            voice: VoiceId.Female1,
+                            voice: VoiceId.Female,
                             weightsBaseUrl: TTS_FIXTURES,
                         });
                     },
                 });
                 assertEqual((await ttsStats()).requests, 0, "no refetch");
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female1),
+                    await isVoiceCached(VoiceId.Female),
                     true,
                     "still cached",
                 );
@@ -4801,19 +4894,19 @@ const
         {
             name: "tts/quota clears other voices",
             run: async () => {
-                await removeVoice(VoiceId.Female1);
+                await removeVoice(VoiceId.Female);
                 await withStorageEstimate({
                     quota: 100,
                     usage: 100,
                     run: async () => {
                         await loadVoice({
-                            voice: VoiceId.Female1,
+                            voice: VoiceId.Female,
                             weightsBaseUrl: TTS_FIXTURES,
                         });
                     },
                 });
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female1),
+                    await isVoiceCached(VoiceId.Female),
                     true,
                     "selected cached",
                 );
@@ -4840,12 +4933,12 @@ const
             name: "tts/refresh keeps selected voice",
             run: async () => {
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female1),
+                    await isVoiceCached(VoiceId.Female),
                     true,
                     "selected persisted",
                 );
                 for (const other of TTS_VOICES) {
-                    if (other.id === VoiceId.Female1) {
+                    if (other.id === VoiceId.Female) {
                         continue;
                     }
                     assertEqual(
@@ -4855,7 +4948,7 @@ const
                     );
                 }
                 assert(
-                    getVoiceSample(VoiceId.Female1).bytes.length > 0,
+                    getVoiceSample(VoiceId.Female).bytes.length > 0,
                     "selected sample",
                 );
             },
@@ -4865,7 +4958,7 @@ const
             run: async () => {
                 await resetTtsStats();
                 await loadVoice({
-                    voice: VoiceId.Female1,
+                    voice: VoiceId.Female,
                     weightsBaseUrl: TTS_FIXTURES,
                 });
                 assertEqual((await ttsStats()).requests, 0, "refresh requests");

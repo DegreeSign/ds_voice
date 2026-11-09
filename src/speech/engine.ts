@@ -4,6 +4,7 @@ import { loadVoice } from "./download";
 import { getVoiceSpec } from "./voices";
 import { getBundledVoiceFile } from "./bundled";
 import { prepareKokoro, synthesizeKokoro } from "./engines/kokoro";
+import { prepareMoss, synthesizeMoss } from "./engines/moss";
 import { prepareSoprano, synthesizeSoprano } from "./engines/soprano";
 import { VoiceFamily } from "./types";
 import type {
@@ -40,7 +41,8 @@ const
         const spec = getVoiceSpec(options.voice);
         if (
             spec.family !== VoiceFamily.Soprano &&
-            spec.family !== VoiceFamily.Kokoro
+            spec.family !== VoiceFamily.Kokoro &&
+            spec.family !== VoiceFamily.Moss
         ) {
             throw new Error(`voice engine ${spec.family} is not available`);
         }
@@ -67,6 +69,13 @@ const
                 load,
             });
         }
+        if (spec.family === VoiceFamily.Moss) {
+            return await synthesizeMoss({
+                voice: spec.id,
+                text: options.text,
+                load,
+            });
+        }
         return await synthesizeSoprano({
             voice: spec.id,
             text: options.text,
@@ -78,6 +87,10 @@ const
         const { spec, load } = await libraryVoice(options);
         if (spec.family === VoiceFamily.Kokoro) {
             await prepareKokoro({ voice: spec.id, load });
+            return;
+        }
+        if (spec.family === VoiceFamily.Moss) {
+            await prepareMoss({ voice: spec.id, load });
             return;
         }
         await prepareSoprano({ voice: spec.id, load });

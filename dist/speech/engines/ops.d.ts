@@ -100,6 +100,8 @@ sigmoid: (value: number) => number,
 siluInPlace: (values: Float32Array) => void, 
 /** GELU with the tanh approximation, in place. */
 geluInPlace: (values: Float32Array) => void, 
+/** GELU with the exact error function, in place. */
+geluErfInPlace: (values: Float32Array) => void, 
 /** Repeat every frame twice, nearest neighbour. */
 upsample2: (options: {
     input: Float32Array;
@@ -129,4 +131,4 @@ alignRepeat: (options: {
 }) => Float32Array, 
 /** Round half to even, matching torch.round. */
 roundHalfEven: (value: number) => number;
-export { adainInPlace, adalnInPlace, alignRepeat, concatChannels, conv1d, convTranspose1d, depthwiseConvTranspose1d, geluInPlace, instanceNorm, layerNorm, leakyInPlace, linear, reflectPadLeft, roundHalfEven, sigmoid, siluInPlace, snakeInPlace, upsample2, };
+export { adainInPlace, adalnInPlace, alignRepeat, concatChannels, conv1d, convTranspose1d, depthwiseConvTranspose1d, geluErfInPlace, geluInPlace, instanceNorm, layerNorm, leakyInPlace, linear, reflectPadLeft, roundHalfEven, sigmoid, siluInPlace, snakeInPlace, upsample2, };

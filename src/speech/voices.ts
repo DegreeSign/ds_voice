@@ -12,10 +12,12 @@ const
     SOPRANO_REPO = "ekwek/Soprano-1.1-80M",
     SOPRANO_GGUF = "BricksDisplay/Soprano-1.1-80M-GGUF",
     QWEN_REPO = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
+    MOSS_GGUF = "Luigi/MOSS-TTS-Nano-100M-GGUF",
+    MOSS_TOKENIZER = "aoiandroid/moss-tts-nano-onnx-fp32",
     /** Every voice in the library. */
     VOICES: Record<VoiceId, VoiceSpec> = {
-        [VoiceId.Female1]: {
-            id: VoiceId.Female1,
+        [VoiceId.Female]: {
+            id: VoiceId.Female,
             label: "Female 1",
             gender: VoiceGender.Female,
             family: VoiceFamily.Kokoro,
@@ -92,12 +94,42 @@ const
             ],
             preview: PREVIEW,
         },
+        [VoiceId.Male2]: {
+            id: VoiceId.Male2,
+            label: "Male 2",
+            gender: VoiceGender.Male,
+            family: VoiceFamily.Moss,
+            speaker: "default",
+            sampleRate: 48000,
+            previewRate: PREVIEW_RATE,
+            license: "Apache-2.0",
+            repository: MOSS_GGUF,
+            files: [
+                {
+                    repo: MOSS_GGUF,
+                    file: "moss_nano.gguf",
+                    bytes: 125_043_936,
+                },
+                {
+                    repo: MOSS_GGUF,
+                    file: "moss_codec.gguf",
+                    bytes: 13_279_328,
+                },
+                {
+                    repo: MOSS_TOKENIZER,
+                    file: "tokenizer/tokenizer.json",
+                    bytes: 1_056_852,
+                },
+            ],
+            preview: PREVIEW,
+        },
     },
     /** Every voice, in library order. */
     listVoices = (): VoiceSpec[] => [
-        VOICES[VoiceId.Female1],
+        VOICES[VoiceId.Female],
         VOICES[VoiceId.Female2],
         VOICES[VoiceId.Male],
+        VOICES[VoiceId.Male2],
     ],
     /** One voice by id. */
     getVoiceSpec = (voice: VoiceId): VoiceSpec => {

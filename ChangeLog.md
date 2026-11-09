@@ -3,6 +3,17 @@
 All notable changes to `@degreesign/voice` are recorded here. This project
 follows semantic versioning.
 
+## 2.1.0
+
+### Added
+
+- `VoiceId.Male2` and `VoiceFamily.Moss` for MOSS-TTS-Nano 100M, a 48 kHz
+  multilingual male voice.
+
+### Changed
+
+- `VoiceId.Female` replaces `VoiceId.Female1`.
+
 ## 2.0.1
 
 ### Added
