@@ -10,6 +10,9 @@ setup.
 [![node](https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg)](#install)
 [![types](https://img.shields.io/badge/types-included-blue.svg)](#quick-start)
 
+**[Try the live demo](https://degreesign.github.io/ds_voice/)** to run speech to
+text and text to speech in the browser, with no install.
+
 ## Table of contents
 
 - [Why](#why)
@@ -75,7 +78,7 @@ Build from source with `yarn build` and typecheck with `yarn typecheck`.
 <script src="https://cdn.jsdelivr.net/npm/@degreesign/voice@latest/dist/browser/degreesign.min.js"></script>
 ```
 
-Try the [live speech demo](https://degreesign.github.io/ds_voice/demo.html)
+Try the [live speech demo](https://degreesign.github.io/ds_voice/)
 before installing. It runs speech to text and text to speech in the browser.
 
 ## Quick start
@@ -366,7 +369,7 @@ The states are `idle`, `requesting`, `recording`, `paused`, `loading` and
 
 ## Demo
 
-Open the [live demo](https://degreesign.github.io/ds_voice/demo.html) to try
+Open the [live demo](https://degreesign.github.io/ds_voice/) to try
 both directions in a browser before installing. It loads `@degreesign/voice`
 from jsDelivr and lets you:
 
@@ -375,9 +378,9 @@ from jsDelivr and lets you:
 - Record a reference and speak the text with the cloned voice.
 
 The demo for speech to text uses `Quality.Low`, a 59 MB download. The demo
-source is [docs/demo.html](docs/demo.html). Run
+source is [docs/index.html](docs/index.html). Run
 `node test/example/serve.cjs`, then open
-`http://127.0.0.1:17544/docs/demo.html` to serve it locally.
+`http://127.0.0.1:17544/docs/index.html` to serve it locally.
 
 ## Models
 

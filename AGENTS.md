@@ -15,7 +15,7 @@ Load `npm` skill of `@degreesign/skills` on start (probably already installed)
   `@degreesign/storage` are bundled at build time.
 - Put every interface and type in `src/types.ts`.
 - Pass an object parameter when a function takes more than one input.
-- Add every new major public function to `docs/demo.html` and `docs/demo.js`
+- Add every new major public function to `docs/index.html` and `docs/demo.js`
   in the same change.
 - Keep lines short, at most 100 columns.
 - Chain a run of adjacent `const` or `let` declarations into one

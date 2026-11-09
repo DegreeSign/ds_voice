@@ -23,7 +23,7 @@ const
             if (url === "/" || url === "/voice") {
                 response.writeHead(302, {
                     location: url === "/voice"
-                        ? "/docs/demo.html"
+                        ? "/docs/index.html"
                         : "/test/example/record.html",
                 });
                 response.end();
@@ -49,7 +49,7 @@ const
                 `Recorder page: http://127.0.0.1:${PORT}/test/example/record.html`,
             );
             console.log(
-                `Voice demo: http://127.0.0.1:${PORT}/docs/demo.html`,
+                `Voice demo: http://127.0.0.1:${PORT}/docs/index.html`,
             );
         });
         server.on("error", (error) => {

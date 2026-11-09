@@ -1,6 +1,6 @@
 {
     "name": "@degreesign/voice",
-    "version": "2.4.1",
+    "version": "2.4.2",
     "description": "Offline dictation, speech to text and text to speech (TTS) for web and Node.js",
     "main": "dist/node/degreesign.node.min.js",
     "browser": "dist/browser/degreesign.min.js",
