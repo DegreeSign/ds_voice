@@ -308,8 +308,8 @@ The `@degreesign/voice/dictation` entry exports `createDictation`,
 
 ## Voice library
 
-The main `@degreesign/voice` bundle files the voices as `female_1`, `female_2`,
-`male_1` and `male_2`. Every entry names one Apache-2.0 model and carries a 16 kHz preview
+The main `@degreesign/voice` bundle files the voices as `female` and
+`male`. Every entry names one Apache-2.0 model and carries a 16 kHz preview
 clip inside the bundle, so a voice picker can play a sample before any weight
 is downloaded. `loadVoice` fetches the files of the selected voice on first use
 and stores the result in the same platform store as the recognition weights.
@@ -317,15 +317,15 @@ Switching voice keeps the old files cached for a later switch back.
 
 | Voice | Model | Speaker | Output |
 | ----- | ----- | ------- | ------ |
-| `female_1` | `cstr/kokoro-82m-GGUF` | `af_heart` | 24 kHz |
-| `female_2` | `ekwek/Soprano-1.1-80M` | `default` | 32 kHz |
-| `male_1` | `hexgrad/Kokoro-82M` | `am_michael` | 24 kHz |
-| `male_2` | `Luigi/MOSS-TTS-Nano-100M-GGUF` | `default` | 48 kHz |
+| `male` | `Luigi/MOSS-TTS-Nano-100M-GGUF` | `default` | 48 kHz |
+| `female` | `Luigi/MOSS-TTS-Nano-100M-GGUF` | `default` | 48 kHz |
 
-`male_1` reuses the Kokoro backbone and ships its 0.5 MB `am_michael` voice pack
-inside the bundle, so only the shared backbone is downloaded on first use.
-`male_2` clones a bundled male reference rendered by the Kokoro voice, so it
-keeps a low-pitched speaker without a reference download.
+`male` and `female` clone bundled references rendered by the Kokoro voice,
+so they keep a consistent speaker without a reference download. They support
+the 20 MOSS-TTS-Nano languages: Arabic, Chinese, Czech, Danish, English,
+French, German, Greek, Hebrew, Hungarian, Italian, Japanese, Korean, Persian,
+Polish, Portuguese, Russian, Spanish, Swedish and Turkish. There is no language
+option; the text itself selects the language.
 
 ```ts
 import {
@@ -346,8 +346,8 @@ if (!(await isVoiceCached(VoiceId.Female))) {
 }
 
 const audio = await synthesize({
-    voice: VoiceId.Female2,
-    text: "Hello from the second female voice.",
+    voice: VoiceId.Male,
+    text: "Hello from the male voice.",
 });
 // audio.pcm is mono Float32 at audio.sampleRate.
 ```
@@ -359,10 +359,19 @@ file. `removeVoice` drops the cached files. Every downloaded voice stays in
 the store, so switching back needs no download.
 
 `synthesize` loads the selected voice on first use and returns `VoiceAudio`.
-The Kokoro engine covers `female_1` and `male_1`, the Soprano engine covers
-`female_2`, and the MOSS engine covers `male_2`. The parsed weights stay
-resident until another voice replaces them,
-so repeated calls for one voice skip the store reads and tensor parsing.
+It accepts optional `pitch` in semitones, `rate` and `gain` controls, applied
+after synthesis for every voice. The MOSS voices also accept `seed` and
+`temperature` to steer its sampler. Gain defaults to two; pitch and rate
+default to zero and one. The MOSS engine covers `male` and `female`. The
+parsed weights stay resident until another voice replaces them, so repeated
+calls for one voice skip the store reads and tensor parsing.
+
+### Voice tuning page
+
+`test/example/voice.html` is a small page with one text box, a voice picker,
+a progress bar and pitch, rate, gain, temperature and seed sliders. Run
+`yarn build` and `node test/example/serve.cjs`, then open
+`http://127.0.0.1:17544/test/example/voice.html`.
 
 `prepareVoice({ voice })` performs the same download and parse without
 synthesizing. Call it when a voice is picked or speech is enabled, then

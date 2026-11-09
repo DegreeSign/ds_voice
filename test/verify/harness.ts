@@ -41,27 +41,18 @@ import {
 } from "../../src/models/configs/specs";
 import { ModelFamily, ModelId } from "../../src/tensor/core/types";
 import {
-    adainInPlace,
-    alignRepeat,
-    concatChannels,
-    conv1d,
-    convTranspose1d,
-    depthwiseConvTranspose1d,
     geluErfInPlace,
-    instanceNorm,
-    reflectPadLeft,
-    roundHalfEven,
-    snakeInPlace,
-    upsample2,
+    geluInPlace as geluInPlaceOps,
+    layerNorm as layerNormOps,
+    linear as linearOps,
 } from "../../src/speech/engines/ops";
-import { phonemizeEnglish } from "../../src/speech/engines/g2p";
 import { createMossTokenizer } from "../../src/speech/engines/mossTokenizer";
 import { decodeMossAudio, loadMossCodec } from "../../src/speech/engines/mossCodec";
-import { MOSS_REFERENCE } from "../../src/speech/engines/mossReference";
 import {
-    getBundledVoiceFile,
-    isBundledVoiceFile,
-} from "../../src/speech/bundled";
+    MOSS_FEMALE_REFERENCE,
+    MOSS_MALE_REFERENCE,
+} from "../../src/speech/engines/mossReference";
+import { adjustVoiceAudio } from "../../src/speech/engines/adjust";
 import { parseGguf } from "../../src/models/formats/gguf";
 import {
     assertWhisperShape,
@@ -1221,25 +1212,13 @@ const
     /** Expected fields of every library voice. */
     TTS_VOICES: TtsVoiceExpectation[] = [
         {
-            id: VoiceId.Female,
-            family: VoiceFamily.Kokoro,
-            speaker: "af_heart",
-            sampleRate: 24000,
-        },
-        {
-            id: VoiceId.Female2,
-            family: VoiceFamily.Soprano,
-            speaker: "default",
-            sampleRate: 32000,
-        },
-        {
             id: VoiceId.Male,
-            family: VoiceFamily.Kokoro,
-            speaker: "am_michael",
-            sampleRate: 24000,
+            family: VoiceFamily.Moss,
+            speaker: "default",
+            sampleRate: 48000,
         },
         {
-            id: VoiceId.Male2,
+            id: VoiceId.Female,
             family: VoiceFamily.Moss,
             speaker: "default",
             sampleRate: 48000,
@@ -4399,7 +4378,7 @@ const definitions: Array<{
             name: "tts/listVoices",
             run: () => {
                 const voices = listVoices();
-                assertEqual(voices.length, TTS_VOICES.length, "four voices");
+                assertEqual(voices.length, TTS_VOICES.length, "two voices");
                 assertEqual(entry.listVoices, listVoices, "one bundle");
                 assertEqual(entry.getVoiceSpec, getVoiceSpec, "one getter");
                 assertEqual(entry.loadVoice, loadVoice, "one loader");
@@ -4493,7 +4472,7 @@ const definitions: Array<{
                 await assertRejects(
                     async () =>
                         await synthesize({
-                            voice: VoiceId.Female,
+                            voice: VoiceId.Male,
                             text: "Hello.",
                             weightsBaseUrl: TTS_FIXTURES,
                         }),
@@ -4507,7 +4486,7 @@ const definitions: Array<{
                 await assertRejects(
                     async () =>
                         await prepareVoice({
-                            voice: VoiceId.Female,
+                            voice: VoiceId.Male,
                             weightsBaseUrl: TTS_FIXTURES,
                         }),
                     "not a gguf",
@@ -4582,9 +4561,68 @@ const definitions: Array<{
         {
             name: "speech/moss reference",
             run: () => {
-                assertEqual(MOSS_REFERENCE.length, 42 * 16, "reference size");
-                assertEqual(MOSS_REFERENCE[0], 482, "reference first");
-                assertEqual(MOSS_REFERENCE[15], 49, "reference last");
+                assertEqual(
+                    MOSS_MALE_REFERENCE.length,
+                    42 * 16,
+                    "male reference size",
+                );
+                assertEqual(MOSS_MALE_REFERENCE[0], 482, "male reference first");
+                assertEqual(MOSS_MALE_REFERENCE[15], 49, "male reference last");
+                assertEqual(
+                    MOSS_FEMALE_REFERENCE.length,
+                    39 * 16,
+                    "female reference size",
+                );
+                assertEqual(
+                    MOSS_FEMALE_REFERENCE[0],
+                    482,
+                    "female reference first",
+                );
+            },
+        },
+        {
+            name: "speech/adjust voice audio",
+            run: () => {
+                const
+                    sampleRate = 16000,
+                    length = sampleRate / 2,
+                    pcm = new Float32Array(length);
+                for (let i = 0; i < length; i += 1) {
+                    pcm[i] = Math.sin((2 * Math.PI * 200 * i) / sampleRate);
+                }
+                const audio = { pcm, sampleRate },
+                    noop = adjustVoiceAudio({ audio });
+                assertEqual(noop, audio, "adjust noop");
+                const gained = adjustVoiceAudio({
+                    audio: {
+                        pcm: new Float32Array([0.5, -0.5, 0.8]),
+                        sampleRate,
+                    },
+                    gain: 2,
+                }).pcm;
+                assertClose(gained[0], 1, "adjust gain high");
+                assertClose(gained[1], -1, "adjust gain low");
+                assertClose(gained[2], 1, "adjust gain clamp");
+                const faster = adjustVoiceAudio({ audio, rate: 2 }).pcm;
+                assertEqual(faster.length, length / 2, "adjust rate length");
+                const shifted = adjustVoiceAudio({ audio, pitch: 12 }).pcm;
+                const crossings = (values: Float32Array): number => {
+                    let count = 0;
+                    for (let i = 1; i < values.length; i += 1) {
+                        if ((values[i - 1] < 0) !== (values[i] < 0)) {
+                            count += 1;
+                        }
+                    }
+                    return count;
+                };
+                assert(
+                    Math.abs(shifted.length - length) <= 2,
+                    "adjust pitch length",
+                );
+                assert(
+                    crossings(shifted) > crossings(pcm) * 1.5,
+                    "adjust pitch rises",
+                );
             },
         },
         {
@@ -4598,179 +4636,44 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech/ops conv1d",
+            name: "speech/ops linear and layer norm",
             run: () => {
                 assertList(
-                    conv1d({
-                        input: new Float32Array([1, 2, 3]),
-                        frames: 3,
-                        channels: 1,
-                        weight: new Float32Array([1, 2, 1]),
-                        outChannels: 1,
-                        kernel: 3,
-                        padding: 1,
-                    }),
-                    [4, 8, 8],
-                    "conv1d padded",
-                );
-            },
-        },
-        {
-            name: "speech/ops transposed convs",
-            run: () => {
-                assertList(
-                    convTranspose1d({
-                        input: new Float32Array([2]),
-                        frames: 1,
-                        channels: 1,
-                        weight: new Float32Array([3, 4]),
-                        bias: new Float32Array([1]),
-                        outChannels: 1,
-                        kernel: 2,
-                        stride: 2,
-                        padding: 0,
-                    }),
-                    [7, 9],
-                    "convTranspose1d",
-                );
-                assertList(
-                    depthwiseConvTranspose1d({
-                        input: new Float32Array([1, 10, 2, 20]),
-                        frames: 2,
-                        channels: 2,
-                        weight: new Float32Array([1, 0, 1, 2, 0, 2]),
-                        kernel: 3,
-                        stride: 2,
-                        padding: 1,
-                        outputPadding: 1,
-                    }),
-                    [0, 0, 3, 60, 0, 0, 2, 40],
-                    "depthwise pool",
-                );
-            },
-        },
-        {
-            name: "speech/ops normalization and shapes",
-            run: () => {
-                assertList(
-                    instanceNorm({
-                        input: new Float32Array([1, 3]),
-                        frames: 2,
-                        channels: 1,
-                    }),
-                    [-1, 1],
-                    "instanceNorm",
-                );
-                const adaptive = new Float32Array([1, 3]);
-                adainInPlace({
-                    input: adaptive,
-                    frames: 2,
-                    channels: 1,
-                    style: new Float32Array([1]),
-                    weight: new Float32Array([1, 0]),
-                    bias: new Float32Array([0, 0]),
-                });
-                assertList(adaptive, [-2, 2], "adain");
-                const snake = new Float32Array([0.5]);
-                snakeInPlace({
-                    values: snake,
-                    frames: 1,
-                    channels: 1,
-                    alpha: new Float32Array([1]),
-                });
-                assertClose(snake[0], 0.5 + Math.sin(0.5) ** 2, "snake");
-                assertList(
-                    upsample2({
+                    linearOps({
                         input: new Float32Array([1, 2]),
+                        rows: 1,
+                        inDim: 2,
+                        weight: new Float32Array([3, 4, 5, 6]),
+                        bias: new Float32Array([1, -1]),
+                        outDim: 2,
+                    }),
+                    [12, 16],
+                    "ops linear",
+                );
+                assertList(
+                    layerNormOps({
+                        input: new Float32Array([1, 3]),
                         frames: 1,
                         channels: 2,
                     }),
-                    [1, 2, 1, 2],
-                    "upsample2",
+                    [-0.999995, 0.999995],
+                    "ops layer norm",
                 );
-                assertList(
-                    reflectPadLeft({
-                        input: new Float32Array([5, 7]),
-                        frames: 2,
-                        channels: 1,
-                    }),
-                    [7, 5, 7],
-                    "reflectPadLeft",
-                );
-                assertList(
-                    concatChannels({
-                        parts: [
-                            { data: new Float32Array([1, 2]), channels: 1 },
-                            { data: new Float32Array([3, 4, 5, 6]), channels: 2 },
-                        ],
-                        frames: 2,
-                    }),
-                    [1, 3, 4, 2, 5, 6],
-                    "concatChannels",
-                );
-                assertList(
-                    alignRepeat({
-                        input: new Float32Array([10, 20]),
-                        rows: 2,
-                        channels: 1,
-                        durations: [2, 1],
-                    }),
-                    [10, 10, 20],
-                    "alignRepeat",
-                );
-                assertEqual(roundHalfEven(0.5), 0, "round 0.5");
-                assertEqual(roundHalfEven(1.5), 2, "round 1.5");
-                assertEqual(roundHalfEven(2.5), 2, "round 2.5");
-            },
-        },
-        {
-            name: "speech/g2p English",
-            run: () => {
-                assertEqual(
-                    phonemizeEnglish("Buy two apples tomorrow."),
-                    "bˈI tˈu ˈæpᵊlz təmˈɑɹO.",
-                    "lexicon and number",
-                );
-                assertEqual(
-                    phonemizeEnglish("a voice"),
-                    "ɐ vˈYs",
-                    "article",
-                );
-                assertEqual(
-                    phonemizeEnglish("the end"),
-                    "ði ˈɛnd",
-                    "vowel article",
-                );
-            },
-        },
-        {
-            name: "speech/bundled male pack",
-            run: () => {
-                assert(
-                    isBundledVoiceFile("kokoro-voice-am_michael.gguf"),
-                    "bundled flag",
-                );
-                const bytes = getBundledVoiceFile(
-                    "kokoro-voice-am_michael.gguf",
-                );
-                assertEqual(bytes?.length, 522528, "pack length");
-                assertEqual(
-                    String.fromCharCode(
-                        ...(bytes?.subarray(0, 4) ?? []),
-                    ),
-                    "GGUF",
-                    "pack magic",
-                );
+                const values = new Float32Array([0, 1, -1]);
+                geluInPlaceOps(values);
+                assertClose(values[0], 0, "ops gelu zero");
+                assertClose(values[1], 0.841192, "ops gelu one");
+                assertClose(values[2], -0.158808, "ops gelu minus one");
             },
         },
         {
             name: "tts/loadVoice rejects",
             run: async () => {
-                await removeVoice(VoiceId.Female);
+                await removeVoice(VoiceId.Male);
                 await assertRejects(
                     async () =>
                         await loadVoice({
-                            voice: VoiceId.Female,
+                            voice: VoiceId.Male,
                             weightsBaseUrl: "data:",
                         }),
                     "invalid host",
@@ -4822,22 +4725,22 @@ const
         {
             name: "tts/download recovery",
             run: async () => {
-                await removeVoice(VoiceId.Female);
+                await removeVoice(VoiceId.Male);
                 await resetTtsStats();
                 await loadVoice({
-                    voice: VoiceId.Female,
+                    voice: VoiceId.Male,
                     weightsBaseUrl: TTS_FAULTS,
                 });
                 const stats = await ttsStats();
                 assert(stats.faults > 0, "fault injected");
                 assert(stats.requests > stats.faults, "retry after fault");
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female),
+                    await isVoiceCached(VoiceId.Male),
                     true,
                     "recovered file",
                 );
                 for (const other of TTS_VOICES) {
-                    if (other.id === VoiceId.Female) {
+                    if (other.id === VoiceId.Male) {
                         continue;
                     }
                     assertEqual(
@@ -4853,12 +4756,12 @@ const
             run: async () => {
                 await resetTtsStats();
                 await loadVoice({
-                    voice: VoiceId.Female,
+                    voice: VoiceId.Male,
                     weightsBaseUrl: TTS_FIXTURES,
                 });
                 assertEqual((await ttsStats()).requests, 0, "warm requests");
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female),
+                    await isVoiceCached(VoiceId.Male),
                     true,
                     "warm file",
                 );
@@ -4869,7 +4772,7 @@ const
             run: async () => {
                 await resetTtsStats();
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female),
+                    await isVoiceCached(VoiceId.Male),
                     true,
                     "cached first",
                 );
@@ -4878,14 +4781,14 @@ const
                     usage: 100,
                     run: async () => {
                         await loadVoice({
-                            voice: VoiceId.Female,
+                            voice: VoiceId.Male,
                             weightsBaseUrl: TTS_FIXTURES,
                         });
                     },
                 });
                 assertEqual((await ttsStats()).requests, 0, "no refetch");
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female),
+                    await isVoiceCached(VoiceId.Male),
                     true,
                     "still cached",
                 );
@@ -4894,34 +4797,29 @@ const
         {
             name: "tts/quota clears other voices",
             run: async () => {
-                await removeVoice(VoiceId.Female);
+                await removeVoice(VoiceId.Male);
                 await withStorageEstimate({
                     quota: 100,
                     usage: 100,
                     run: async () => {
                         await loadVoice({
-                            voice: VoiceId.Female,
+                            voice: VoiceId.Male,
                             weightsBaseUrl: TTS_FIXTURES,
                         });
                     },
                 });
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female),
+                    await isVoiceCached(VoiceId.Male),
                     true,
                     "selected cached",
                 );
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female2),
+                    await isVoiceCached(VoiceId.Female),
                     false,
-                    "largest cleared",
-                );
-                assertEqual(
-                    await isVoiceCached(VoiceId.Male),
-                    true,
-                    "smallest kept",
+                    "other cleared",
                 );
                 await loadVoice({
-                    voice: VoiceId.Female2,
+                    voice: VoiceId.Female,
                     weightsBaseUrl: TTS_FIXTURES,
                 });
             },
@@ -4933,12 +4831,12 @@ const
             name: "tts/refresh keeps selected voice",
             run: async () => {
                 assertEqual(
-                    await isVoiceCached(VoiceId.Female),
+                    await isVoiceCached(VoiceId.Male),
                     true,
                     "selected persisted",
                 );
                 for (const other of TTS_VOICES) {
-                    if (other.id === VoiceId.Female) {
+                    if (other.id === VoiceId.Male) {
                         continue;
                     }
                     assertEqual(
@@ -4948,7 +4846,7 @@ const
                     );
                 }
                 assert(
-                    getVoiceSample(VoiceId.Female).bytes.length > 0,
+                    getVoiceSample(VoiceId.Male).bytes.length > 0,
                     "selected sample",
                 );
             },
@@ -4958,7 +4856,7 @@ const
             run: async () => {
                 await resetTtsStats();
                 await loadVoice({
-                    voice: VoiceId.Female,
+                    voice: VoiceId.Male,
                     weightsBaseUrl: TTS_FIXTURES,
                 });
                 assertEqual((await ttsStats()).requests, 0, "refresh requests");

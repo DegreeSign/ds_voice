@@ -1,7 +1,7 @@
-// Bundled reference codes for the MOSS male voice.
+// Bundled reference codes for the MOSS voices.
 const
     /** Little endian uint16 codes, 42 frames by 16 codebooks. */
-    REFERENCE_BASE64 =
+    MALE_BASE64 =
         "4gHCAJ4C8QCNA5YBoQFyAqsATgGbAxEBZgOxAhABMQDiAcIAngLxAI0DlgGhAXICqwBOAZsDEQFm" +
         "A7ECEAExAFMBrwIDAvEAgQBwAJQDegOrAPABMgCvAkwAsAEDA6sA8AEwAe0C8QDAAeQDxgP3AqcA" +
         "WAASAhoCegBPAYIBmgNEA5ECeQIVACsC+gEPAZ4DOADEAsUBZgNXAiQBbQLHAocCOAIoAkEAvwKi" +
@@ -26,10 +26,34 @@ const
         "A0wDMANfAIwCrwKaADgByAEhA1oCYwHVApQAjQOWANwAVgM0A9UBRADpAGYDWwESATEAUwENANoB" +
         "LgH6AKYDfAAwA2sB1QEyAN4BcAA6AiAAYQPiAcIAngIjAI0D/wAvAZQBlwGMAXoCPAMVArEC9APL" +
         "AuIBwgCeAvEAjQOWAaEBlAGXAU4B9QEVAnAAsQIQATEA",
-    /** Decode the base64 reference codes. */
-    decodeReference = (): Uint16Array => {
+    /** Little endian uint16 codes, 39 frames by 16 codebooks. */
+    FEMALE_BASE64 =
+        "4gHCAJ4C8QCNA5YBoQFyAqsATgGbAxEBZgOxAhABMQDiAcIAngLxAI0DlgGhAXICqwBOAZsDEQFm" +
+        "A7ECEAExAFMBigKxA/cCIwIQAVEBdQD3Ah8AMgAcAcwDvgEtAeYD+wCDA1IAbADNAHYCUACwAzQB" +
+        "CwHUAx8BMgAyATgD+gLtA+sDigJGAa0C5gPDAd4BOwELA/MBzgJ/A54DNAA5A7IBzQKFAeoC4QO2" +
+        "A5wDzwGsAooADANqAeQBeAO+A1UCvgIpAjEAogLyA1gBCQMBA+oADwMJAA4AbQBEA14ClQNkAEMD" +
+        "0gF0AW4D3gAZAvUCcALzANUD6QOsAjwBrgAzAjYDJABEAQwAkgMMAXQAhgIgAuAB2QKoA7QBkwNH" +
+        "AF0B2gKtAqYBAQOOAX0C9QB3AjoDPQPCA74CxQBgAxsCPwCqAw8CCQJ1AloDlQDqA6wCAwPKA64C" +
+        "XwNpA3YCogF5A9MDzAHtAG8BOQOpA+ICDwC8Ai4B1gLUA1wDrAMPAXkAlAPEAfMCFQJmANQBKAJA" +
+        "AU4BIgHjA0UC8gHrA7sD5QBNA10AHwFGAcwC3wLfA6MCmAIDAs0BZQInAAYC0ACyACoCKwGHAKcB" +
+        "lQEcA94C1QF8AOoCzQD0AHkAegEzAckDLgHEACEDPQKUA2ADtAGpAo8BKQJnADcCTAJkAIcAyQF5" +
+        "A0kBowOXA6gCBQBgAIUC9APkAkYCSAGXAO4AzwAvApsC1gH8Aa4BBAGPAk4DywClA58D4AE4ADMA" +
+        "sAAmAfcB8APtAn0D1AKpAmAC+wGKAqAD2AOhAi4CwgKKA9sDCgDMAr0AoAOtAy4D7QGsASwAeQAW" +
+        "AbgCZwJyAjQBMQIJA2EDCQO9Ag8D4wHDA4gA5gFWABIAXQCNAcYDJgJgAYMAswOKAqcD8gBdABwB" +
+        "jgGLARcDRQGlAHQBjwPrAjkAbQGzA+4BiANkAw4ApgDcAFcBvgOEAUQCQgFsATsD8gIuAFoCIwBu" +
+        "AfEArwCWAJQBewAzAbcDdQB+AQwARgOpAUoB9gDAACsCBgF6A/QCQAH8AWcB7wJQAkkBpQLUA6AC" +
+        "uAODAlkAsQMpAGoAxgP8Ax0AiADzAHUDfAErA/IDAwKQARUAeQCTAwAB6gK9AaIBaQK3AA0AlAFG" +
+        "ANgD4gFjAeIBgAP9AKsD4AGPAlwDTALGAGEBAAAmA2sAlwOBAM4DzAPKApkADgE8AEwCVABHAUQC" +
+        "4gMKA8YDgwJnAK0AhwEEA6AASAO5AisDcQEkAJ8DBAGHAv8BVQC3AMsBWAPuAL0BogIgA0EDDwJl" +
+        "AfsCIAP6AggC8ABmAQsDSABtAgUA9QDjAlUB1QBZA44AYAPOA5gDcwERASkCIQJNAZ4DjQHJAI8D" +
+        "KgBwAXkCKgIjAYICjgOUAjgCWwF0A1cDlgNvAKoA4QPuAbEDGwGhAu8DAALqAhsAGgL0APID9QIy" +
+        "A2kAvwLiAcIAOQIuAfoAtAAvATAD9wLVAboCjAMeAjoC3AMdA+IBwgCeAvEAjQOWAaEBlAGXAU4B" +
+        "9QERAXAAsQIQATEA4gHCAJ4C8QCNA5YBoQGUAZcBTgH1ARUCcAC+ARABLwDiAcIAngLxAI0DlgF8" +
+        "AJQBlwFOAfUBFQJwALECEAHTAeIBwgCeAvEAjQOWAaEBlAGXAU4BmwMVAnAAvgEQATEA",
+    /** Decode one base64 reference. */
+    decodeReference = (base64: string): Uint16Array => {
         const
-            binary = atob(REFERENCE_BASE64),
+            binary = atob(base64),
             bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i += 1) {
             bytes[i] = binary.charCodeAt(i);
@@ -40,7 +64,9 @@ const
         }
         return out;
     },
-    /** Fixed reference codes of the MOSS voice. */
-    MOSS_REFERENCE = decodeReference();
+    /** Fixed male reference codes of the MOSS voice. */
+    MOSS_MALE_REFERENCE = decodeReference(MALE_BASE64),
+    /** Fixed female reference codes of the MOSS voice. */
+    MOSS_FEMALE_REFERENCE = decodeReference(FEMALE_BASE64);
 
-export { MOSS_REFERENCE };
+export { MOSS_FEMALE_REFERENCE, MOSS_MALE_REFERENCE };

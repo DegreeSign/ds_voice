@@ -1,14 +1,10 @@
 import { ProgressPhase } from "../tensor/core/types";
 /** Voice choices in the bundled library. */
 export declare enum VoiceId {
-    /** Kokoro-82M, American English female. */
-    Female = "female_1",
-    /** Soprano-1.1-80M, English female. */
-    Female2 = "female_2",
-    /** Qwen3-TTS 0.6B, English male. */
-    Male = "male_1",
-    /** MOSS-TTS-Nano 100M, multilingual default speaker. */
-    Male2 = "male_2"
+    /** Male 100MB, MOSS-TTS-Nano-100M, multilingual. */
+    Male = "male",
+    /** Female 100MB, MOSS-TTS-Nano-100M, multilingual. */
+    Female = "female"
 }
 /** Gender label of a library voice. */
 export declare enum VoiceGender {
@@ -17,9 +13,6 @@ export declare enum VoiceGender {
 }
 /** Model family behind a library voice. */
 export declare enum VoiceFamily {
-    Kokoro = "kokoro",
-    Soprano = "soprano",
-    Qwen3Tts = "qwen3-tts",
     Moss = "moss"
 }
 /** One file of a voice model, downloaded on first use. */
@@ -30,8 +23,6 @@ export interface VoiceFile {
     file: string;
     /** Expected size in bytes, zero when unknown. */
     bytes: number;
-    /** True when the file ships inside the package. */
-    bundled?: boolean;
 }
 /** One voice in the library. */
 export interface VoiceSpec {
@@ -97,6 +88,16 @@ export interface LoadVoiceOptions {
 export interface SynthesizeVoiceOptions extends LoadVoiceOptions {
     /** Text to speak. */
     text: string;
+    /** Pitch shift in semitones, zero keeps the source voice. */
+    pitch?: number;
+    /** Speaking rate multiplier, one keeps the source timing. */
+    rate?: number;
+    /** Linear output gain, MOSS defaults to two. */
+    gain?: number;
+    /** Deterministic sampling seed, MOSS only. */
+    seed?: number;
+    /** Sampling temperature, MOSS only. */
+    temperature?: number;
 }
 /** Mono PCM produced by a voice. */
 export interface VoiceAudio {

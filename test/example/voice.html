@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Voice tuning</title>
+        <style>
+            body {
+                font-family: ui-monospace, monospace;
+                margin: 24px auto;
+                max-width: 560px;
+                padding: 0 16px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            .hint {
+                font-size: 12px;
+                line-height: 1.5;
+                color: #555;
+            }
+            .field,
+            .slider {
+                display: block;
+                margin: 12px 0;
+            }
+            .field select,
+            .field input {
+                box-sizing: border-box;
+                font: inherit;
+                margin-top: 4px;
+                padding: 6px;
+                width: 100%;
+            }
+            .sliders {
+                border: 1px solid #bbb;
+                margin: 16px 0;
+                padding: 12px;
+            }
+            .slider input {
+                width: 100%;
+            }
+            .slider span {
+                float: right;
+                font-weight: bold;
+            }
+            .voice_note {
+                color: #a33;
+                font-size: 12px;
+                margin-left: 6px;
+            }
+            button {
+                font: inherit;
+                padding: 10px 18px;
+            }
+            progress {
+                display: block;
+                height: 18px;
+                margin: 16px 0 8px;
+                width: 100%;
+            }
+            #status {
+                min-height: 20px;
+                white-space: pre-wrap;
+            }
+            audio {
+                margin-top: 12px;
+                width: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <h1>Voice tuning</h1>
+            <p class="hint">
+                Run <code>yarn build</code> and
+                <code>node test/example/serve.cjs</code>, then open
+                <code>/test/example/voice.html</code>. Pick a voice, tune the
+                sliders and press Speak. The first run downloads the voice and
+                keeps it cached. Pitch and rate are applied after synthesis,
+                so they work for every voice. Temperature and seed only affect
+                the MOSS voices (Female and Male).
+            </p>
+            <label class="field">
+                Voice
+                <select id="voice"></select>
+            </label>
+            <label class="field">
+                Text
+                <input id="text" type="text" value="Hi, this is a voice preview. Ha ha ha!" />
+            </label>
+            <div class="sliders">
+                <label class="slider">
+                    Pitch (semitones)
+                    <span id="pitch_value">0.0</span>
+                    <input id="pitch" type="range" min="-6" max="6" step="0.1" value="0" />
+                </label>
+                <label class="slider">
+                    Rate
+                    <span id="rate_value">1.00</span>
+                    <input id="rate" type="range" min="0.5" max="1.5" step="0.05" value="1" />
+                </label>
+                <label class="slider">
+                    Gain
+                    <span id="gain_value">1.00</span>
+                    <input id="gain" type="range" min="0.2" max="2" step="0.05" value="1" />
+                </label>
+                <label class="slider">
+                    Temperature
+                    <span id="temperature_value">0.80</span>
+                    <input id="temperature" type="range" min="0.3" max="1.5" step="0.05" value="0.8" />
+                </label>
+                <label class="slider">
+                    Seed
+                    <span id="seed_value">0</span>
+                    <input id="seed" type="range" min="0" max="9999" step="1" value="0" />
+                </label>
+            </div>
+            <button id="speak" type="button">Speak</button>
+            <progress id="progress" max="100" value="0"></progress>
+            <p id="status" role="status">Ready.</p>
+            <audio id="playback" controls></audio>
+        </main>
+        <script src="../../dist/browser/degreesign.min.js"></script>
+        <script src="voice.js"></script>
+    </body>
+</html>

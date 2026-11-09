@@ -20,9 +20,11 @@ const
             const
                 url = decodeURIComponent((request.url || "/").split("?")[0]),
                 file = path.join(ROOT, url.replace(/^\/+/, ""));
-            if (url === "/") {
+            if (url === "/" || url === "/voice") {
                 response.writeHead(302, {
-                    location: "/test/example/record.html",
+                    location: url === "/voice"
+                        ? "/test/example/voice.html"
+                        : "/test/example/record.html",
                 });
                 response.end();
                 return;
@@ -45,6 +47,9 @@ const
         server.listen(PORT, "127.0.0.1", () => {
             console.log(
                 `Recorder page: http://127.0.0.1:${PORT}/test/example/record.html`,
+            );
+            console.log(
+                `Voice page: http://127.0.0.1:${PORT}/test/example/voice.html`,
             );
         });
         server.on("error", (error) => {

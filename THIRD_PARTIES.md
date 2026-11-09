@@ -3,7 +3,7 @@
 `@degreesign/voice` is an independent TypeScript runtime for the SenseVoice,
 Whisper and text to speech models listed below. It loads published model
 weights at runtime. The only upstream data it redistributes are the bundled
-`male_1` voice pack and the English IPA lexicon listed below.
+MOSS reference codes and generated preview clips listed below.
 
 The runtime code in this repository is original work licensed under the MIT
 License. See [LICENSE](LICENSE).
@@ -65,49 +65,6 @@ License. See [LICENSE](LICENSE).
   FunAudioLLM/SenseVoiceSmall by Alibaba Group / FunAudioLLM. The tokenizer and
   configuration are embedded in the same file.
 
-### cstr/kokoro-82m-GGUF
-
-- License: Apache License 2.0
-- Sources: https://huggingface.co/cstr/kokoro-82m-GGUF and
-  https://huggingface.co/hexgrad/Kokoro-82M
-- Contents: the Q8_0 GGUF conversion of the Kokoro 82M StyleTTS 2 checkpoint
-  used by the `female_1` and `male_1` voices.
-
-### cstr/kokoro-voices-GGUF
-
-- License: Apache License 2.0
-- Sources: https://huggingface.co/cstr/kokoro-voices-GGUF and
-  https://huggingface.co/hexgrad/Kokoro-82M
-- Contents: the F32 GGUF conversion of the `af_heart` voice pack used by
-  `female_1`.
-
-### hexgrad/misaki
-
-- License: Apache License 2.0
-- Source: https://github.com/hexgrad/misaki
-- Contents: the US gold English IPA lexicon, front-coded into `lexicon.ts`, used
-  by the Kokoro grapheme to phoneme conversion.
-
-### Bundled `male_1` voice pack
-
-- License: Apache License 2.0
-- Source: https://huggingface.co/hexgrad/Kokoro-82M
-- Contents: the `voices/am_michael.pt` style vector, converted to a Kokoro voice
-  GGUF and shipped inside the package.
-
-### BricksDisplay/Soprano-1.1-80M-GGUF
-
-- License: Apache License 2.0
-- Source: https://huggingface.co/BricksDisplay/Soprano-1.1-80M-GGUF
-- Contents: the F16 GGUF conversion of the Soprano 1.1 80M Qwen3 language model
-  and the F32 GGUF conversion of its Vocos decoder.
-
-### ekwek/Soprano-1.1-80M
-
-- License: Apache License 2.0
-- Source: https://huggingface.co/ekwek/Soprano-1.1-80M
-- Contents: the `tokenizer.json` used by the `female_2` voice.
-
 ### Luigi/MOSS-TTS-Nano-100M-GGUF
 
 - License: Apache License 2.0
@@ -115,7 +72,8 @@ License. See [LICENSE](LICENSE).
   https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M and
   https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano
 - Contents: the GGUF conversion of the MOSS-TTS-Nano 100M language model and
-  the MOSS-Audio-Tokenizer-Nano decoder used by the `male_2` voice.
+  the MOSS-Audio-Tokenizer-Nano decoder used by the `male` and `female`
+  voices.
 
 ### aoiandroid/moss-tts-nano-onnx-fp32
 
@@ -123,18 +81,23 @@ License. See [LICENSE](LICENSE).
 - Sources: https://huggingface.co/aoiandroid/moss-tts-nano-onnx-fp32 and
   https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M
 - Contents: the `tokenizer.json` conversion of the SentencePiece tokenizer used
-  by the `male_2` voice.
+  by the `male` and `female` voices.
 
-### Bundled male_2 reference codes
+### Bundled MOSS reference codes
 
 - License: Apache License 2.0
-- Source: the generated `male_1` preview included in this package.
-- Contents: the MOSS audio tokenizer codes of that clip, used to keep the
-  `male_2` voice consistent without downloading a reference recording.
+- Sources: the `male` and `female` voices are conditioned on reference clips
+  rendered with Kokoro-82M. The `male` clip uses `cstr/kokoro-82m-GGUF` with
+  the `am_michael` speaker. The `female` clip uses `cstr/kokoro-82m-GGUF`
+  with the `af_heart` speaker pack from `cstr/kokoro-voices-GGUF`. Both derive
+  from https://huggingface.co/hexgrad/Kokoro-82M.
+- Contents: the MOSS audio tokenizer codes of those clips, used to keep the
+  `male` and `female` voices consistent without downloading a reference
+  recording.
 
 ### Bundled voice previews
 
-The four preview clips under `src/assets/voices` were synthesized from the
+The two preview clips under `src/assets/voices` were synthesized from the
 models above with the fixed line held in `src/speech/voices.ts`. They contain
 no upstream audio recordings and are generated output of the listed weights.
 

@@ -2,13 +2,17 @@
 import { parseGguf } from "../../models/formats/gguf";
 import { readGgufTensor } from "../../models/formats/ggufTensor";
 import { createMossTokenizer } from "./mossTokenizer";
-import { MOSS_REFERENCE } from "./mossReference";
+import {
+    MOSS_FEMALE_REFERENCE,
+    MOSS_MALE_REFERENCE,
+} from "./mossReference";
 import { decodeMossAudio, loadMossCodec } from "./mossCodec";
 import { geluInPlace, layerNorm, linear } from "./ops";
 import type { GgufFile } from "../../tensor/core/types";
 import type { MossTokenizer } from "./mossTokenizer";
 import type { MossCodec } from "./mossCodec";
-import type { VoiceAudio, VoiceId } from "../types";
+import { VoiceId } from "../types";
+import type { VoiceAudio } from "../types";
 const
     /** Model shape of the global and local transformers. */
     HIDDEN = 768,
@@ -540,6 +544,12 @@ const promptIds = (options: {
     ];
 };
 
+/** Reference codes of one MOSS voice. */
+const referenceFor = (voice: VoiceId): Uint16Array =>
+    voice === VoiceId.Female
+        ? MOSS_FEMALE_REFERENCE
+        : MOSS_MALE_REFERENCE;
+
 /** One prompt row, text token plus optional audio codes. */
 interface MossRow {
     text: number;
@@ -602,13 +612,16 @@ const generateFrames = (options: {
     tokenizer: MossTokenizer;
     text: string;
     maxFrames: number;
+    reference: Uint16Array;
+    seed?: number;
+    temperature?: number;
 }): Uint16Array => {
     const
         { tensors, tokenizer, text } = options,
         prompt = promptRows({
             tokenizer,
             text,
-            reference: MOSS_REFERENCE,
+            reference: options.reference,
         }),
         maxFrames = Math.min(
             options.maxFrames,
@@ -631,7 +644,7 @@ const generateFrames = (options: {
         frames: Uint16Array[] = [],
         textScores = new Float32Array(2),
         audioScores = new Float32Array(CODEBOOK_SIZE),
-        random = createRandom(textSeed(text)),
+        random = createRandom(options.seed ?? textSeed(text)),
         seen = new Uint8Array(CODEBOOKS * CODEBOOK_SIZE);
     const localStep = createLocalStep(tensors);
     for (let frame = 0; frame < maxFrames; frame += 1) {
@@ -671,7 +684,7 @@ const generateFrames = (options: {
             });
             const code = sampleToken({
                 logits: values,
-                temperature: AUDIO_TEMPERATURE,
+                temperature: options.temperature ?? AUDIO_TEMPERATURE,
                 topK: AUDIO_TOP_K,
                 topP: AUDIO_TOP_P,
                 random,
@@ -750,6 +763,8 @@ const synthesizeMoss = async (options: {
     text: string;
     load: (file: string) => Promise<Uint8Array>;
     maxFrames?: number;
+    seed?: number;
+    temperature?: number;
 }): Promise<VoiceAudio> => {
     const
         loaded = await loadMoss({
@@ -761,6 +776,9 @@ const synthesizeMoss = async (options: {
             tokenizer: loaded.tokenizer,
             text: options.text,
             maxFrames: options.maxFrames ?? MAX_FRAMES,
+            reference: referenceFor(options.voice),
+            seed: options.seed,
+            temperature: options.temperature,
         }),
         frames = codes.length / CODEBOOKS,
         pcm = decodeMossAudio({

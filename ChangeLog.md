@@ -3,6 +3,28 @@
 All notable changes to `@degreesign/voice` are recorded here. This project
 follows semantic versioning.
 
+## 2.2.0
+
+### Added
+
+- `SynthesizeVoiceOptions.pitch`, `.rate`, `.gain`, `.seed` and `.temperature`
+  for `synthesize`. Pitch and rate apply to every voice and MOSS uses the seed
+  and temperature to steer its sampler.
+- `test/example/voice.html`, a manual page for trying the voices and tuning
+  the new controls.
+
+### Changed
+
+- `VoiceId.Male` and `VoiceId.Female` are the only library voices, both MOSS
+  TTS Nano 100M at 48 kHz with the 20 MOSS languages. They use separate
+  bundled reference codes.
+- `synthesize` runs only the MOSS engine and applies pitch, rate and gain
+  after synthesis.
+- `VoiceId.Female2`, `VoiceId.Male2` and the Kokoro, Soprano and Qwen3-TTS
+  families are removed.
+- Voice files are always read from the platform store. The bundled `male_1`
+  voice pack and the English IPA lexicon are gone.
+
 ## 2.1.0
 
 ### Added

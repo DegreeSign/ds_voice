@@ -80,10 +80,6 @@ const
         signal: AbortSignal;
         onBytes?: (bytes: number) => void;
     }): Promise<void> => {
-        if (options.file.bundled) {
-            options.onBytes?.(options.file.bytes);
-            return;
-        }
         const
             store = await getStore(),
             key = fileKey({ voice: options.voice, file: options.file.file });
@@ -128,9 +124,6 @@ const
             store = await getStore(),
             missing: VoiceFile[] = [];
         for (const file of getVoiceSpec(voice).files) {
-            if (file.bundled) {
-                continue;
-            }
             const key = fileKey({ voice, file: file.file });
             if (!(await store.exists(key))) {
                 missing.push(file);

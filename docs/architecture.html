@@ -422,8 +422,7 @@ const MAP = {
     intro: `Bands run top to bottom in dependency order. The host enters`
         + ` through one bundle that carries recognition and the voice library.`
         + ` A preview clip is always local; only the selected voice downloads and`
-        + ` synthesis runs through the matching engine.`,
-    ignore: [`src/speech/assets/voicePacks.ts`],
+        + ` synthesis runs through the MOSS engine.`,
 };
 
 const BANDS = [
@@ -433,7 +432,7 @@ const BANDS = [
     { id: "session", title: "4 · audio session", hint: "features, segments, workers", color: "#35596b" },
     { id: "dictation", title: "5 · dictation and bundles", hint: "microphone and family bundles", color: "#40657a" },
     { id: "voice", title: "6 · voice library", hint: "voices, previews, lazy weights", color: "#2f6b52" },
-    { id: "engines", title: "7 · voice engines", hint: "soprano backbone and decoder", color: "#2a5a46" },
+    { id: "engines", title: "7 · voice engines", hint: "moss transformers and codec", color: "#2a5a46" },
     { id: "models-speech", title: "8 · speech models", hint: "whisper and sensevoice", color: "#6b5530" },
     { id: "models-data", title: "9 · weights and formats", hint: "gguf, safetensors, specs", color: "#75603a" },
     { id: "models-text", title: "10 · text and config", hint: "vocab, words, configs", color: "#5f6b3f" },
@@ -504,25 +503,19 @@ f("platform.storeChunk", "store", "chunk.ts", "src/platform/store/chunk.ts", 295
 f("platform.storeDownload", "store", "download.ts", "src/platform/store/download.ts", 456);
 f("platform.storeIndex", "store", "index.ts", "src/platform/store/index.ts", 24);
 f("platform.storeUsage", "store", "usage.ts", "src/platform/store/usage.ts", 261);
-f("tts.bundled", "voice", "bundled.ts", "src/speech/bundled.ts", 36);
-f("tts.download", "voice", "download.ts", "src/speech/download.ts", 292);
-f("tts.engine", "voice", "engine.ts", "src/speech/engine.ts", 99);
-f("tts.enginesFft", "engines", "fft.ts", "src/speech/engines/fft.ts", 120);
-f("tts.enginesG2p", "engines", "g2p.ts", "src/speech/engines/g2p.ts", 384);
-f("tts.enginesKokoro", "engines", "kokoro.ts", "src/speech/engines/kokoro.ts", 1820);
-f("tts.enginesLexicon", "engines", "lexicon.ts", "src/speech/engines/lexicon.ts", 11298);
-f("tts.enginesMoss", "engines", "moss.ts", "src/speech/engines/moss.ts", 781);
-f("tts.enginesMossReference", "engines", "mossReference.ts", "src/speech/engines/mossReference.ts", 46);
+f("tts.download", "voice", "download.ts", "src/speech/download.ts", 285);
+f("tts.engine", "voice", "engine.ts", "src/speech/engine.ts", 77);
+f("tts.enginesAdjust", "engines", "adjust.ts", "src/speech/engines/adjust.ts", 151);
+f("tts.enginesMoss", "engines", "moss.ts", "src/speech/engines/moss.ts", 799);
+f("tts.enginesMossReference", "engines", "mossReference.ts", "src/speech/engines/mossReference.ts", 72);
 f("tts.enginesMossCodec", "engines", "mossCodec.ts", "src/speech/engines/mossCodec.ts", 491);
 f("tts.enginesMossTokenizer", "engines", "mossTokenizer.ts", "src/speech/engines/mossTokenizer.ts", 180);
-f("tts.enginesOps", "engines", "ops.ts", "src/speech/engines/ops.ts", 491);
-f("tts.enginesSoprano", "engines", "soprano.ts", "src/speech/engines/soprano.ts", 664);
-f("tts.enginesTokenizer", "engines", "tokenizer.ts", "src/speech/engines/tokenizer.ts", 133);
+f("tts.enginesOps", "engines", "ops.ts", "src/speech/engines/ops.ts", 117);
 f("tts.index", "entry", "index.ts", "src/speech/index.ts", 15);
-f("tts.sample", "voice", "sample.ts", "src/speech/sample.ts", 42);
-f("tts.samples", "voice", "samples.ts", "src/speech/samples.ts", 6313);
-f("tts.types", "voice", "types.ts", "src/speech/types.ts", 118);
-f("tts.voices", "voice", "voices.ts", "src/speech/voices.ts", 143);
+f("tts.sample", "voice", "sample.ts", "src/speech/sample.ts", 40);
+f("tts.samples", "voice", "samples.ts", "src/speech/samples.ts", 3271);
+f("tts.types", "voice", "types.ts", "src/speech/types.ts", 119);
+f("tts.voices", "voice", "voices.ts", "src/speech/voices.ts", 87);
 f("tensor.coreBinary", "tensor", "binary.ts", "src/tensor/core/binary.ts", 105);
 f("tensor.coreMath", "tensor", "math.ts", "src/tensor/core/math.ts", 21);
 f("tensor.coreTypes", "tensor", "types.ts", "src/tensor/core/types.ts", 1474);
@@ -547,57 +540,51 @@ f("tr.workerWorker", "session", "worker.ts", "src/transcription/worker/worker.ts
 f("tr.workerWorkerEntry", "session", "workerEntry.ts", "src/transcription/worker/workerEntry.ts", 4);
 f("build.webpack", "build", "webpack.config.ts", "webpack.config.ts", 144);
 f("build.package", "build", "package.json", "package.json", 82);
-f("build.samples", "build", "embed-voice-samples.cjs", "scripts/embed-voice-samples.cjs", 39);
+f("build.samples", "build", "embed-voice-samples.cjs", "scripts/embed-voice-samples.cjs", 37);
 f("build.assets", "build", "copy-assets.cjs", "scripts/copy-assets.cjs", 14);
-f("build.harness", "build", "harness.ts", "test/verify/harness.ts", 5008);
+f("build.harness", "build", "harness.ts", "test/verify/harness.ts", 4906);
 f("build.drive", "build", "drive.cjs", "test/verify/drive.cjs", 257);
 
 n("host", "app", 0, "host app", "text · voice", "The caller owns the text, the voice and the progress.");
 n("entry", "api", 12, "public API", "transcribe + preloadVoice + loadModel + isModelCached", "Binds recognition and the voice library to the main entry.");
-n("tts.types", "voiceId", 5, "VoiceId", "female_1 · female_2 · male_1 · male_2", "Stable identifiers of the four library voices.");
-n("tts.types", "gender", 15, "VoiceGender", "female · male", "Gender label shown by a voice picker.");
-n("tts.types", "family", 21, "VoiceFamily", "kokoro · soprano · qwen3-tts · moss", "Model family behind a library voice.");
-n("tts.types", "file", 28, "VoiceFile", "repo · file · bytes", "One lazy weight file of a voice.");
-n("tts.types", "spec", 38, "VoiceSpec", "id · family · speaker · files", "One voice entry in the library.");
-n("tts.types", "sample", 64, "VoiceSample", "voice · bytes · rate", "Decoded preview clip of one voice.");
-n("tts.types", "progress", 76, "VoiceDownloadProgress", "voice · file · loaded · total", "Aggregate progress of a voice download.");
-n("tts.types", "options", 92, "LoadVoiceOptions", "voice · base · onProgress", "Input of the lazy voice loader.");
-n("tts.types", "audio", 108, "VoiceAudio", "pcm · sampleRate", "Mono output shape reserved for synthesis.");
+n("tts.types", "voiceId", 5, "VoiceId", "female · male", "Stable identifiers of the two library voices.");
+n("tts.types", "gender", 13, "VoiceGender", "female · male", "Gender label shown by a voice picker.");
+n("tts.types", "family", 19, "VoiceFamily", "moss", "Model family behind a library voice.");
+n("tts.types", "file", 24, "VoiceFile", "repo · file · bytes", "One lazy weight file of a voice.");
+n("tts.types", "spec", 34, "VoiceSpec", "id · family · speaker · files", "One voice entry in the library.");
+n("tts.types", "sample", 60, "VoiceSample", "voice · bytes · rate", "Decoded preview clip of one voice.");
+n("tts.types", "progress", 72, "VoiceDownloadProgress", "voice · file · loaded · total", "Aggregate progress of a voice download.");
+n("tts.types", "options", 88, "LoadVoiceOptions", "voice · base · onProgress", "Input of the lazy voice loader.");
+n("tts.types", "synthOptions", 98, "SynthesizeVoiceOptions", "text · pitch · rate · gain", "Input of synthesis with optional voice tuning.");
+n("tts.types", "audio", 114, "VoiceAudio", "pcm · sampleRate", "Mono output shape reserved for synthesis.");
 n("tts.voices", "preview", 6, "PREVIEW", "string", "Fixed line rendered for every preview clip.");
 n("tts.voices", "rate", 8, "PREVIEW_RATE", "16000", "Sample rate of the bundled preview clips.");
-n("tts.voices", "table", 15, "VOICES", "Record<VoiceId, VoiceSpec>", "The four voices and their model files.");
-n("tts.voices", "list", 128, "listVoices", "() => VoiceSpec[]", "Lists the library in picker order.");
-n("tts.voices", "get", 135, "getVoiceSpec", "(voice: VoiceId) => VoiceSpec", "Reads one voice and rejects an unknown id.");
-n("tts.samples", "clips", 4, "sample clips", "female_1 · female_2 · male_1 · male_2", "Base64 WAV previews bundled with the package.");
-n("tts.sample", "decode", 17, "decode", "(base64: string) => Uint8Array", "Decodes one base64 clip into WAV bytes.");
-n("tts.sample", "get", 27, "getVoiceSample", "(voice: VoiceId) => VoiceSample", "Returns a cached preview for one voice.");
-n("tts.bundled", "get", 21, "getBundledVoiceFile", "(file) => Uint8Array | undefined", "Returns one voice pack shipped in the package.");
-n("tts.download", "load", 208, "loadVoice", "(options) => Promise<VoiceSpec>", "Downloads every missing file of one voice.");
+n("tts.voices", "table", 13, "VOICES", "Record<VoiceId, VoiceSpec>", "The two voices and their model files.");
+n("tts.voices", "list", 74, "listVoices", "() => VoiceSpec[]", "Lists the library in picker order.");
+n("tts.voices", "get", 79, "getVoiceSpec", "(voice: VoiceId) => VoiceSpec", "Reads one voice and rejects an unknown id.");
+n("tts.samples", "clips", 4, "sample clips", "male · female", "Base64 WAV previews bundled with the package.");
+n("tts.sample", "decode", 15, "decode", "(base64: string) => Uint8Array", "Decodes one base64 clip into WAV bytes.");
+n("tts.sample", "get", 25, "getVoiceSample", "(voice: VoiceId) => VoiceSample", "Returns a cached preview for one voice.");
+n("tts.download", "load", 201, "loadVoice", "(options) => Promise<VoiceSpec>", "Downloads every missing file of one voice.");
 n("tts.download", "fetch", 76, "fetchFile", "(options) => Promise<void>", "Fetches one file with cleanup and retries.");
-n("tts.download", "cached", 149, "isVoiceCached", "(voice) => Promise<boolean>", "Reads the store without touching the network.");
-n("tts.download", "remove", 186, "removeVoice", "(voice) => Promise<void>", "Drops every stored file of one voice.");
-n("tts.engine", "synth", 61, "synthesize", "(options) => Promise<VoiceAudio>", "Loads the selected voice and dispatches to its engine.");
-n("tts.enginesFft", "istft", 71, "inverseStft", "(options) => Float32Array", "Centered inverse STFT for the vocoder head.");
-n("tts.enginesOps", "linear", 3, "linear", "(options) => Float32Array", "Shared matrix multiply with an optional bias.");
-n("tts.enginesOps", "norm", 176, "layerNorm", "(options) => Float32Array", "Shared layer normalization.");
-n("tts.enginesOps", "gelu", 372, "geluErfInPlace", "(values) => void", "Exact GELU used by the codec decoder.");
-n("tts.enginesTokenizer", "create", 99, "createTokenizer", "(json) => SopranoTokenizer", "Builds the Soprano byte pair tokenizer.");
-n("tts.enginesG2p", "english", 335, "phonemizeEnglish", "(text) => string", "Turns English text into Kokoro phonemes.");
-n("tts.enginesKokoro", "run", 1793, "synthesizeKokoro", "(options) => Promise<VoiceAudio>", "Runs the Kokoro backbone and decoder.");
-n("tts.enginesMoss", "run", 748, "synthesizeMoss", "(options) => Promise<VoiceAudio>", "Runs the MOSS transformers and codec decoder.");
-n("tts.enginesMoss", "load", 718, "loadMoss", "(options) => Promise<MossResident>", "Loads the resident weights, tokenizer and codec.");
-n("tts.enginesMoss", "frames", 600, "generateFrames", "(options) => Uint16Array", "Samples audio code frames from the text prompt.");
-n("tts.enginesMoss", "step", 359, "createGlobalStep", "(options) => step", "Caches the global transformer key and value rows.");
-n("tts.enginesMoss", "local", 404, "createLocalStep", "(tensors) => step", "Caches the local transformer key and value rows.");
-n("tts.enginesMoss", "prompt", 550, "promptRows", "(options) => MossRow[]", "Builds the continuation or voice clone prompt rows.");
+n("tts.download", "cached", 142, "isVoiceCached", "(voice) => Promise<boolean>", "Reads the store without touching the network.");
+n("tts.download", "remove", 179, "removeVoice", "(voice) => Promise<void>", "Drops every stored file of one voice.");
+n("tts.engine", "synth", 53, "synthesize", "(options) => Promise<VoiceAudio>", "Loads the selected voice and runs the MOSS engine.");
+n("tts.enginesOps", "linear", 5, "linear", "(options) => Float32Array", "Shared matrix multiply with an optional bias.");
+n("tts.enginesAdjust", "apply", 112, "adjustVoiceAudio", "(options) => VoiceAudio", "Applies pitch, rate and gain to one clip.");
+n("tts.enginesOps", "norm", 43, "layerNorm", "(options) => Float32Array", "Shared layer normalization.");
+n("tts.enginesOps", "gelu", 104, "geluErfInPlace", "(values) => void", "Exact GELU used by the codec decoder.");
+n("tts.enginesMoss", "run", 761, "synthesizeMoss", "(options) => Promise<VoiceAudio>", "Runs the MOSS transformers and codec decoder.");
+n("tts.enginesMoss", "load", 731, "loadMoss", "(options) => Promise<MossResident>", "Loads the resident weights, tokenizer and codec.");
+n("tts.enginesMoss", "frames", 610, "generateFrames", "(options) => Uint16Array", "Samples audio code frames from the text prompt.");
+n("tts.enginesMoss", "step", 363, "createGlobalStep", "(options) => step", "Caches the global transformer key and value rows.");
+n("tts.enginesMoss", "local", 408, "createLocalStep", "(tensors) => step", "Caches the local transformer key and value rows.");
+n("tts.enginesMoss", "prompt", 560, "promptRows", "(options) => MossRow[]", "Builds the continuation or voice clone prompt rows.");
 n("tts.enginesMossCodec", "load", 352, "loadMossCodec", "(bytes) => MossCodec", "Parses the codec GGUF into stages and quantizers.");
 n("tts.enginesMossCodec", "decode", 447, "decodeMossAudio", "(options) => Float32Array", "Decodes audio code frames into mono PCM.");
 n("tts.enginesMossTokenizer", "create", 125, "createMossTokenizer", "(json) => MossTokenizer", "Builds the SentencePiece BPE tokenizer.");
-n("tts.enginesMossReference", "codes", 44, "MOSS_REFERENCE", "Uint16Array", "Bundled male reference codes for voice cloning.");
-n("tts.enginesSoprano", "run", 424, "synthesizeSoprano", "(options) => Promise<VoiceAudio>", "Runs the Qwen3 backbone and the Vocos decoder.");
-n("tts.enginesSoprano", "load", 189, "loadTensors", "(options) => SopranoTensors", "Reads the language and decoder GGUF tensors.");
-n("tts.enginesSoprano", "decode", 280, "decode", "(options) => Float32Array", "Turns hidden states into 32 kHz audio.");
-n("tts.enginesSoprano", "interp", 34, "interpolate", "(options) => Float32Array", "Upsamples hidden states four times.");
+n("tts.enginesMossReference", "male", 68, "MOSS_MALE_REFERENCE", "Uint16Array", "Bundled male reference codes for voice cloning.");
+n("tts.enginesMossReference", "female", 70, "MOSS_FEMALE_REFERENCE", "Uint16Array", "Bundled female reference codes for voice cloning.");
 n("tts.index", "public", 2, "voice barrel", "voices · samples · download · synth", "Re-exports the voice library through the main entry.");
 n("tr.coreVoice", "create", 47, "createVoice", "(input) => Voice", "Builds a voice over one platform store.");
 n("tr.coreVoice", "get", 57, "getVoice", "() => Voice", "Returns the shared recognition voice.");
@@ -651,7 +638,7 @@ n("build.webpack", "bundles", 129, "bundles", "browser + node", "Emits the recog
 n("build.package", "exports", 8, "exports", "one main entry", "Maps the main entry to its bundles and types.");
 n("build.samples", "script", 37, "embed", "wav to base64", "Regenerates the bundled preview module.");
 n("build.assets", "script", 13, "copy", "src to dist", "Copies the preview assets into dist.");
-n("build.harness", "definitions", 1233, "definitions", "browser suite", "Asserts every exported function in Chromium.");
+n("build.harness", "definitions", 1267, "definitions", "browser suite", "Asserts every exported function in Chromium.");
 n("build.drive", "serve", 79, "serve", "static + fixtures", "Serves the page, fixtures and fault injection.");
 
 e("host.app", "entry.api", "call");
@@ -684,9 +671,9 @@ e("tts.index.public", "tts.sample.get", "call");
 e("tts.index.public", "tts.download.load", "call");
 e("tts.index.public", "tts.engine.synth", "call");
 e("tts.engine.synth", "tts.download.load", "call");
-e("tts.engine.synth", "tts.enginesSoprano.run", "call");
-e("tts.engine.synth", "tts.enginesKokoro.run", "call");
+e("tts.engine.synth", "tts.enginesAdjust.apply", "call");
 e("tts.engine.synth", "tts.enginesMoss.run", "call");
+e("tts.engine.synth", "tts.types.synthOptions", "type");
 e("tts.engine.synth", "platform.storeIndex.get", "store");
 e("tts.enginesMoss.run", "tts.enginesMoss.load", "call");
 e("tts.enginesMoss.run", "tts.enginesMoss.frames", "call");
@@ -694,7 +681,8 @@ e("tts.enginesMoss.run", "tts.enginesMossCodec.decode", "call");
 e("tts.enginesMoss.frames", "tts.enginesMoss.prompt", "call");
 e("tts.enginesMoss.frames", "tts.enginesMoss.step", "call");
 e("tts.enginesMoss.frames", "tts.enginesMoss.local", "call");
-e("tts.enginesMoss.frames", "tts.enginesMossReference.codes", "type");
+e("tts.enginesMoss.frames", "tts.enginesMossReference.male", "type");
+e("tts.enginesMoss.frames", "tts.enginesMossReference.female", "type");
 e("tts.enginesMoss.load", "tts.enginesMossTokenizer.create", "call");
 e("tts.enginesMoss.load", "tts.enginesMossCodec.load", "call");
 e("tts.enginesMoss.load", "model.formatsGguf.parse", "call");
@@ -704,15 +692,6 @@ e("tts.enginesMossCodec.load", "model.formatsGgufTensor.read", "call");
 e("tts.enginesMossCodec.decode", "tts.enginesOps.linear", "call");
 e("tts.enginesMossCodec.decode", "tts.enginesOps.norm", "call");
 e("tts.enginesMossCodec.decode", "tts.enginesOps.gelu", "call");
-e("tts.enginesKokoro.run", "tts.enginesG2p.english", "call");
-e("tts.enginesSoprano.run", "tts.enginesTokenizer.create", "call");
-e("tts.enginesSoprano.run", "tts.enginesSoprano.load", "call");
-e("tts.enginesSoprano.run", "tts.enginesSoprano.decode", "call");
-e("tts.enginesSoprano.run", "tts.voices.get", "call");
-e("tts.enginesSoprano.decode", "tts.enginesSoprano.interp", "call");
-e("tts.enginesSoprano.decode", "tts.enginesFft.istft", "call");
-e("tts.enginesSoprano.load", "model.formatsGguf.parse", "call");
-e("tts.enginesSoprano.load", "model.formatsGgufTensor.read", "call");
 e("tts.index.public", "tts.download.cached", "call");
 e("tts.index.public", "tts.download.remove", "call");
 e("tts.voices.list", "tts.voices.table", "call");
@@ -769,7 +748,7 @@ FLOWS.tts = {
         step([`host.app`, `entry.api`, `tts.index.public`], ` The caller picks a voice from the main bundle.`),
         step([`tts.voices.get`, `tts.sample.get`], ` Metadata and the bundled preview come back without a download.`),
         step([`tts.download.load`, `tts.download.fetch`], ` The first loadVoice fetches every missing file.`),
-        step([`tts.engine.synth`, `tts.enginesSoprano.run`], ` synthesize runs the selected engine over the stored weights.`),
+        step([`tts.engine.synth`, `tts.enginesMoss.run`], ` synthesize runs the selected engine over the stored weights.`),
         step([`platform.storeIndex.get`, `tts.download.cached`], ` The store persists the files for warm starts and refresh.`),
     ],
 };
