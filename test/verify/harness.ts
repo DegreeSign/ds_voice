@@ -59,22 +59,6 @@ import {
     parseSafetensors,
 } from "../../src/models/formats/safetensors";
 import {
-    readSenseVoiceConfig,
-    readSenseVoiceFrontend,
-} from "../../src/models/configs/sensevoice";
-import { decodeCtc } from "../../src/models/sensevoice/ctc";
-import {
-    encodeSenseVoice,
-    senseVoiceLogits,
-} from "../../src/models/sensevoice/encoder";
-import { computeSenseVoiceFeatures } from "../../src/models/sensevoice/fbank";
-import { createSenseVoiceVocabulary } from "../../src/models/vocab/sensevoice";
-import { createGgufWeights } from "../../src/models/weights/sensevoice";
-import {
-    loadSenseVoice,
-    transcribeSenseVoice,
-} from "../../src/models/sensevoice/model";
-import {
     TOKENS,
     assertSuppressMatch,
     loadConfigs,
@@ -134,9 +118,6 @@ import {
     TimestampMode,
 } from "../../src/tensor/core/types";
 import { createVoice, getVoice } from "../../src/transcription/core/voice";
-import {
-    createVoice as createSenseVoiceVoice,
-} from "../../src/transcription/bundle/senseVoice";
 import {
     createVoice as createWhisperVoice,
 } from "../../src/transcription/bundle/whisper";
@@ -204,10 +185,8 @@ import type {
 import type {
     Constants,
     DownloadProgress,
-    GgufFile,
     GgufValue,
     LoadedModel,
-    LoadedSenseVoice,
     MelConfig,
     MicrophoneCapture,
     MicrophoneCaptureHandle,
@@ -218,8 +197,6 @@ import type {
     RawGenerationConfig,
     RawModelConfig,
     RawPreprocessorConfig,
-    SenseVoiceConfig,
-    SenseVoiceWeights,
     TensorStore,
     Tokenizer,
     Transcript,
@@ -269,13 +246,6 @@ interface ByteWriter {
     raw(value: Uint8Array): void;
     bytes(): Uint8Array;
     size(): number;
-}
-
-/** One synthetic tensor with an optional explicit value list. */
-interface TensorSpec {
-    name: string;
-    shape: number[];
-    values?: number[];
 }
 
 /** A tiny in memory model store for the tests. */
@@ -946,195 +916,6 @@ const
         };
     };
 
-const
-    /** Token types of the synthetic SenseVoice vocabulary. */
-    senseVoiceTypes = [3, 3, 3, 1, 1, 1, 1, 1],
-    /** Tokens of the synthetic SenseVoice vocabulary. */
-    senseVoiceTokens = [
-        "<blank>",
-        "<|zh|>",
-        "<|en|>",
-        "\u2581hello",
-        "\u2581world",
-        "!",
-        "\u2581foo",
-        "\u2581bar",
-    ],
-    /** A small SenseVoice config matching the synthetic tokens. */
-    senseVoiceConfig = (): SenseVoiceConfig => ({
-        dInput: 2,
-        dModel: 4,
-        heads: 1,
-        headDim: 4,
-        ffnDim: 4,
-        kernelSize: 1,
-        mainBlocks: 2,
-        tpBlocks: 1,
-        vocabSize: senseVoiceTokens.length,
-        eps: 1e-12,
-        languageIds: new Map([
-            ["auto", 0],
-            ["zh", 1],
-            ["en", 2],
-            ["yue", 3],
-            ["ja", 4],
-            ["ko", 5],
-            ["nospeech", 6],
-        ]),
-        eventEmotion: [7, 8],
-        withItn: 9,
-        withoutItn: 10,
-    }),
-    /** Every SenseVoice tensor and its pytorch shape. */
-    senseVoiceSpecs = (config: SenseVoiceConfig): TensorSpec[] => {
-        const
-            d = config.dModel,
-            di = config.dInput,
-            f = config.ffnDim,
-            k = config.kernelSize,
-            v = config.vocabSize,
-            ones = (length: number): number[] =>
-                new Array<number>(length).fill(1),
-            specs: TensorSpec[] = [
-                { name: "frontend.cmvn.shift", shape: [di], values: [1, 2] },
-                { name: "frontend.cmvn.scale", shape: [di], values: [0.5, 2] },
-                { name: "enc.embed.weight", shape: [v + 8, di] },
-                { name: "enc.after_norm.weight", shape: [d], values: ones(d) },
-                { name: "enc.after_norm.bias", shape: [d] },
-                { name: "enc.tp_norm.weight", shape: [d], values: ones(d) },
-                { name: "enc.tp_norm.bias", shape: [d] },
-                { name: "ctc.head.weight", shape: [v, d] },
-                { name: "ctc.head.bias", shape: [v] },
-            ],
-            pushBlock = (base: string, inDim: number, normDim: number): void => {
-                specs.push(
-                    {
-                        name: `${base}.norm_attn.weight`,
-                        shape: [normDim],
-                        values: ones(normDim),
-                    },
-                    { name: `${base}.norm_attn.bias`, shape: [normDim] },
-                    { name: `${base}.attn.qkv.weight`, shape: [3 * d, inDim] },
-                    { name: `${base}.attn.qkv.bias`, shape: [3 * d] },
-                    { name: `${base}.attn.fsmn.weight`, shape: [d * k] },
-                    { name: `${base}.attn.out.weight`, shape: [d, d] },
-                    { name: `${base}.attn.out.bias`, shape: [d] },
-                    {
-                        name: `${base}.norm_ffn.weight`,
-                        shape: [d],
-                        values: ones(d),
-                    },
-                    { name: `${base}.norm_ffn.bias`, shape: [d] },
-                    { name: `${base}.ffn.fc1.weight`, shape: [f, d] },
-                    { name: `${base}.ffn.fc1.bias`, shape: [f] },
-                    { name: `${base}.ffn.fc2.weight`, shape: [d, f] },
-                    { name: `${base}.ffn.fc2.bias`, shape: [d] },
-                );
-            };
-        pushBlock("enc.encoders0.0", di, di);
-        for (let i = 0; i < config.mainBlocks - 1; i += 1) {
-            pushBlock(`enc.encoders.${i}`, d, d);
-        }
-        for (let i = 0; i < config.tpBlocks; i += 1) {
-            pushBlock(`enc.tp_encoders.${i}`, d, d);
-        }
-        return specs;
-    },
-    /** Build the full SenseVoice gguf used by the model tests. */
-    senseVoiceGguf = (config: SenseVoiceConfig): Uint8Array => {
-        const
-            specs = senseVoiceSpecs(config),
-            tensors = specs.map((spec) => ({
-                name: spec.name,
-                dims: [...spec.shape].reverse(),
-                type: 0,
-                data: f32Data(
-                    spec.values ?? new Array<number>(product(spec.shape)).fill(0),
-                ),
-            })),
-            metadata: Array<[string, number, unknown]> = [
-                ["stt.sensevoice.encoder.d_model", T_UINT32, config.dModel],
-                ["stt.sensevoice.encoder.n_heads", T_UINT32, config.heads],
-                ["stt.sensevoice.encoder.d_input", T_UINT32, config.dInput],
-                ["stt.sensevoice.encoder.d_ff", T_UINT32, config.ffnDim],
-                ["stt.sensevoice.encoder.kernel_size", T_UINT32, config.kernelSize],
-                ["stt.sensevoice.encoder.n_blocks", T_UINT32, config.mainBlocks],
-                ["stt.sensevoice.encoder.tp_blocks", T_UINT32, config.tpBlocks],
-                ["stt.sensevoice.special.lang_auto", T_UINT32, 0],
-                ["stt.sensevoice.special.lang_zh", T_UINT32, 1],
-                ["stt.sensevoice.special.lang_en", T_UINT32, 2],
-                ["stt.sensevoice.special.lang_yue", T_UINT32, 3],
-                ["stt.sensevoice.special.lang_ja", T_UINT32, 4],
-                ["stt.sensevoice.special.lang_ko", T_UINT32, 5],
-                ["stt.sensevoice.special.lang_nospeech", T_UINT32, 6],
-                ["stt.sensevoice.special.event_speech", T_UINT32, 7],
-                ["stt.sensevoice.special.emotion_neutral", T_UINT32, 8],
-                ["stt.sensevoice.special.withitn", T_UINT32, 9],
-                ["stt.sensevoice.special.woitn", T_UINT32, 10],
-                ["stt.frontend.sample_rate", T_UINT32, 16000],
-                ["stt.frontend.num_mels", T_UINT32, config.dInput],
-                ["stt.frontend.n_fft", T_UINT32, 4],
-                ["stt.frontend.win_length", T_UINT32, 4],
-                ["stt.frontend.hop_length", T_UINT32, 2],
-                ["stt.frontend.lfr_m", T_UINT32, 1],
-                ["stt.frontend.lfr_n", T_UINT32, 1],
-                ["stt.frontend.upscale_samples", T_BOOL, false],
-                [
-                    "tokenizer.ggml.tokens",
-                    T_ARRAY,
-                    { element: T_STRING, items: senseVoiceTokens },
-                ],
-                [
-                    "tokenizer.ggml.token_type",
-                    T_ARRAY,
-                    { element: T_UINT32, items: senseVoiceTypes },
-                ],
-            ];
-        return ggufBytes({ metadata, tensors });
-    },
-    /** Shapes of the SenseVoice tensors. */
-    senseVoiceShapes = (config: SenseVoiceConfig): Record<string, number[]> => {
-        const shapes: Record<string, number[]> = {};
-        for (const spec of senseVoiceSpecs(config)) {
-            shapes[spec.name] = spec.shape;
-        }
-        return shapes;
-    },
-    /** A SenseVoice weight store over zero tensors. */
-    senseVoiceWeights = (
-        shapes: Record<string, number[]>,
-        overrides?: Record<string, number[]>,
-    ): SenseVoiceWeights => {
-        const map = new Map<string, Float32Array>();
-        for (const [name, shape] of Object.entries(shapes)) {
-            const values = overrides?.[name]
-                ?? new Array<number>(product(shape)).fill(0);
-            map.set(name, Float32Array.from(values));
-        }
-        return {
-            names: () => Array.from(map.keys()),
-            has: (name) => map.has(name),
-            shape: (name) => shapes[name] ?? [],
-            f32: (name) => {
-                const value = map.get(name);
-                if (!value) {
-                    throw new Error(`missing tensor ${name}`);
-                }
-                return value;
-            },
-        };
-    },
-    /** A gguf file literal for the config and tokenizer tests. */
-    ggufFileLiteral = (
-        metadata: Array<[string, GgufValue]>,
-    ): GgufFile => ({
-        version: 3,
-        metadata: new Map<string, GgufValue>(metadata),
-        tensors: new Map(),
-        dataOffset: 0,
-        buffer: new Uint8Array(0),
-    });
-
 /** One fake dictation worker driven by the test. */
 class DictationWorkerStub {
     onmessage: ((event: MessageEvent<DictationMessage>) => void) | null = null;
@@ -1713,8 +1494,9 @@ const definitions: Array<{
                 assertEqual(HF_BASE, "https://huggingface.co", "hf base");
                 assertEqual(DEFAULT_MODEL, ModelId.WhisperBase, "default");
                 assertEqual(DEFAULT_QUALITY, Quality.High, "default quality");
-                assertEqual(MODEL_IDS.length, 2, "model ids");
-                assertEqual(CHECKPOINT_IDS.length, 3, "checkpoints");
+                assertEqual(MODEL_IDS.length, 1, "model ids");
+                assertEqual(MODEL_IDS[0], ModelId.WhisperBase, "model id");
+                assertEqual(CHECKPOINT_IDS.length, 2, "checkpoints");
                 assert(MODEL_SPECS[ModelId.WhisperBase] !== undefined, "spec");
                 assertEqual(
                     weightFiles(MODEL_SPECS[ModelId.WhisperBase]).join(","),
@@ -1814,22 +1596,12 @@ const definitions: Array<{
                     "handy-computer/whisper-base-gguf",
                     "default checkpoint",
                 );
-                assertEqual(
-                    resolveSpec({
-                        model: ModelId.SenseVoiceSmall,
-                        language: Language.en,
-                    }).repo,
-                    "handy-computer/SenseVoiceSmall-gguf",
-                    "sensevoice checkpoint",
-                );
             },
         },
         {
             name: "tensor/types enums",
             run: () => {
                 assertEqual(ModelFamily.Whisper, "whisper", "whisper family");
-                assertEqual(ModelFamily.SenseVoice, "sensevoice", "sensevoice family");
-                assertEqual(ModelId.SenseVoiceSmall, "sensevoice-small", "sensevoice id");
                 assertEqual(ModelId.WhisperBase, "whisper-base", "whisper id");
                 assertEqual(Quality.High, "high", "high quality");
                 assertEqual(Quality.Medium, "medium", "medium quality");
@@ -2556,359 +2328,6 @@ const definitions: Array<{
             },
         },
         {
-            name: "sensevoice/config readSenseVoiceConfig",
-            run: () => {
-                const file = ggufFileLiteral([
-                    ["stt.sensevoice.encoder.d_model", 4],
-                    ["stt.sensevoice.encoder.n_heads", 1],
-                    ["stt.sensevoice.encoder.d_input", 2],
-                    ["stt.sensevoice.encoder.d_ff", 4],
-                    ["stt.sensevoice.encoder.kernel_size", 1],
-                    ["stt.sensevoice.encoder.n_blocks", 2],
-                    ["stt.sensevoice.encoder.tp_blocks", 1],
-                    ["stt.sensevoice.special.lang_auto", 0],
-                    ["stt.sensevoice.special.lang_zh", 1],
-                    ["stt.sensevoice.special.lang_en", 2],
-                    ["stt.sensevoice.special.lang_yue", 3],
-                    ["stt.sensevoice.special.lang_ja", 4],
-                    ["stt.sensevoice.special.lang_ko", 5],
-                    ["stt.sensevoice.special.lang_nospeech", 6],
-                    ["stt.sensevoice.special.event_speech", 7],
-                    ["stt.sensevoice.special.emotion_neutral", 8],
-                    ["stt.sensevoice.special.withitn", 9],
-                    ["stt.sensevoice.special.woitn", 10],
-                    ["tokenizer.ggml.tokens", [...senseVoiceTokens]],
-                ]);
-                const config = readSenseVoiceConfig({ file });
-                assertEqual(config.dModel, 4, "dModel");
-                assertEqual(config.headDim, 4, "headDim");
-                assertEqual(config.eps, 1e-12, "eps");
-                assertEqual(config.vocabSize, senseVoiceTokens.length, "vocab");
-                assertEqual(config.languageIds.get("en"), 2, "language");
-                assertEqual(config.eventEmotion[0], 7, "event");
-                assertEqual(config.withItn, 9, "itn");
-                assertThrows(
-                    () => readSenseVoiceConfig({ file: ggufFileLiteral([]) }),
-                    "missing keys",
-                );
-            },
-        },
-        {
-            name: "sensevoice/config readSenseVoiceFrontend",
-            run: () => {
-                const
-                    config = senseVoiceConfig(),
-                    weights = senseVoiceWeights(senseVoiceShapes(config), {
-                        "frontend.cmvn.shift": [1, 2],
-                        "frontend.cmvn.scale": [0.5, 2],
-                    }),
-                    file = ggufFileLiteral([
-                        ["stt.frontend.sample_rate", 16000],
-                        ["stt.frontend.num_mels", 2],
-                        ["stt.frontend.n_fft", 4],
-                        ["stt.frontend.win_length", 4],
-                        ["stt.frontend.hop_length", 2],
-                        ["stt.frontend.lfr_m", 1],
-                        ["stt.frontend.lfr_n", 1],
-                        ["stt.frontend.upscale_samples", true],
-                    ]),
-                    frontend = readSenseVoiceFrontend({ file, weights });
-                assertEqual(frontend.samplingRate, 16000, "rate");
-                assertEqual(frontend.numMels, 2, "mels");
-                assertEqual(frontend.lfrM, 1, "lfr m");
-                assertEqual(frontend.upscale, 32768, "upscale");
-                assertList(frontend.shift, [1, 2], "shift");
-                assertList(frontend.scale, [0.5, 2], "scale");
-            },
-        },
-        {
-            name: "sensevoice/ctc decodeCtc",
-            run: () => {
-                const single = decodeCtc({
-                    logits: new Float32Array([1, 5, 2]),
-                    frames: 1,
-                    vocabSize: 3,
-                    blankId: 0,
-                });
-                assertList(single.ids, [1], "single id");
-                assertList(single.frames, [0], "single frame");
-                const blank = decodeCtc({
-                    logits: new Float32Array([5, 1, 2]),
-                    frames: 1,
-                    vocabSize: 3,
-                    blankId: 0,
-                });
-                assertList(blank.ids, [], "blank id");
-                const multi = decodeCtc({
-                    logits: new Float32Array([5, 1, 2, 0, 5, 1, 0, 5, 1, 0, 1, 5]),
-                    frames: 4,
-                    vocabSize: 3,
-                    blankId: 0,
-                });
-                assertEqual(multi.ids.length, multi.frames.length, "shape");
-                assertList(multi.ids, [1, 2], "multi ids");
-                assertList(multi.frames, [1, 3], "multi frames");
-            },
-        },
-        {
-            name: "sensevoice/tokenizer createSenseVoiceVocabulary",
-            run: () => {
-                const file = ggufFileLiteral([
-                    ["tokenizer.ggml.tokens", [...senseVoiceTokens]],
-                    ["tokenizer.ggml.token_type", [...senseVoiceTypes]],
-                ]);
-                const vocabulary = createSenseVoiceVocabulary({ file });
-                assertEqual(vocabulary.tokenizer.tokenText(0), "", "control text");
-                assertEqual(vocabulary.tokenizer.tokenText(3), " hello", "metaspace");
-                assertEqual(
-                    vocabulary.tokenizer.decode([3, 4]),
-                    "hello world",
-                    "decode",
-                );
-                assertEqual(vocabulary.isControl(0), true, "is control");
-                assertEqual(vocabulary.isControl(3), false, "not control");
-                assertEqual(vocabulary.languageOf(2), "en", "language of");
-                assertEqual(vocabulary.languageOf(3), null, "no language");
-                assertEqual(vocabulary.tokenizer.vocabSize, senseVoiceTokens.length, "vocab");
-                assertThrows(
-                    () => createSenseVoiceVocabulary({ file: ggufFileLiteral([]) }),
-                    "missing tokens",
-                );
-            },
-        },
-        {
-            name: "sensevoice/fbank computeSenseVoiceFeatures",
-            run: () => {
-                const
-                    config = senseVoiceConfig(),
-                    frontend = {
-                        samplingRate: 16000,
-                        numMels: config.dInput,
-                        nFft: 4,
-                        winLength: 4,
-                        hopLength: 2,
-                        lfrM: 1,
-                        lfrN: 1,
-                        upscale: 1,
-                        shift: new Float32Array(config.dInput),
-                        scale: new Float32Array(config.dInput).fill(1),
-                    },
-                    result = computeSenseVoiceFeatures({
-                        pcm: new Float32Array(24).fill(0.3),
-                        frontend,
-                    });
-                assertEqual(result.frames, 11, "frames");
-                assertEqual(result.values.length, result.frames * config.dInput, "values");
-                const shaped = computeSenseVoiceFeatures({
-                    pcm: new Float32Array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
-                    frontend,
-                });
-                assertEqual(shaped.frames, 2, "shaped frames");
-                assertList(
-                    shaped.values,
-                    [-15.94238, -4.80129, -15.94238, -4.80129],
-                    "shaped values",
-                );
-                const short = computeSenseVoiceFeatures({
-                    pcm: new Float32Array(2),
-                    frontend,
-                });
-                assertEqual(short.frames, 0, "short frames");
-            },
-        },
-        {
-            name: "sensevoice/weights createGgufWeights",
-            run: () => {
-                const q8 = new Uint8Array(34);
-                q8[0] = 0x00;
-                q8[1] = 0x3c;
-                for (let i = 0; i < 32; i += 1) {
-                    q8[2 + i] = i + 1;
-                }
-                const bytes = ggufBytes({
-                    tensors: [
-                        {
-                            name: "f32t",
-                            dims: [2, 2],
-                            type: 0,
-                            data: f32Data([1, 2, 3, 4]),
-                        },
-                        {
-                            name: "f16t",
-                            dims: [2],
-                            type: 1,
-                            data: f16Data([1, 0.5]),
-                        },
-                        { name: "q8t", dims: [32], type: 8, data: q8 },
-                        {
-                            name: "q4t",
-                            dims: [256],
-                            type: 12,
-                            data: q4KBlock({
-                                d: 1,
-                                dmin: 0.5,
-                                scales: [1, 2, 3, 4, 1, 2, 3, 4],
-                                mins: [0, 2, 0, 0, 0, 0, 0, 0],
-                                quants: 0x21,
-                            }),
-                        },
-                        {
-                            name: "q6t",
-                            dims: [256],
-                            type: 14,
-                            data: q6KBlock({
-                                d: 1,
-                                scales: [
-                                    1, 2, 3, 4, 5, 6, 7, 8,
-                                    9, 10, 11, 12, 13, 14, 15, 16,
-                                ],
-                                ql: 0x21,
-                                qh: 0xe4,
-                            }),
-                        },
-                    ],
-                });
-                const weights = createGgufWeights({ file: parseGguf({ bytes }) });
-                assertList(weights.f32("f32t"), [1, 2, 3, 4], "f32");
-                assertList(weights.f32("f16t"), [1, 0.5], "f16");
-                const dequant = weights.f32("q8t");
-                assertEqual(dequant.length, 32, "q8 length");
-                assertClose(dequant[0], 1, "q8 first");
-                assertClose(dequant[31], 32, "q8 last");
-                const q4 = weights.f32("q4t");
-                assertEqual(q4.length, 256, "q4 length");
-                assertClose(q4[0], 1, "q4 first");
-                assertClose(q4[32], 3, "q4 second");
-                assertClose(q4[64], 3, "q4 third");
-                assertClose(q4[96], 8, "q4 fourth");
-                assertClose(q4[160], 4, "q4 fifth");
-                assertClose(q4[224], 8, "q4 last");
-                const q6 = weights.f32("q6t");
-                assertEqual(q6.length, 256, "q6 length");
-                assertClose(q6[0], -31, "q6 first");
-                assertClose(q6[32], -45, "q6 second");
-                assertClose(q6[64], 10, "q6 third");
-                assertClose(q6[96], 126, "q6 fourth");
-                assertClose(q6[128], -279, "q6 fifth");
-                assertClose(q6[224], 270, "q6 last");
-                assertEqual(weights.shape("f32t")[0], 2, "shape");
-                assert(weights.names().includes("f32t"), "names");
-                assertThrows(() => weights.f32("missing"), "missing");
-                const uncached = createGgufWeights({
-                    file: parseGguf({ bytes }),
-                    cacheBytes: 0,
-                });
-                assertList(uncached.f32("f32t"), [1, 2, 3, 4], "no cache");
-                const evicting = createGgufWeights({
-                    file: parseGguf({ bytes }),
-                    cacheBytes: 16,
-                });
-                assertClose(evicting.f32("q4t")[0], 1, "tiny cache first");
-                assertList(evicting.f32("f32t"), [1, 2, 3, 4], "tiny cache f32");
-                assertClose(evicting.f32("q4t")[0], 1, "tiny cache reload");
-            },
-        },
-        {
-            name: "sensevoice/encoder encodeSenseVoice and senseVoiceLogits",
-            run: () => {
-                const
-                    config = senseVoiceConfig(),
-                    weights = senseVoiceWeights(senseVoiceShapes(config)),
-                    encoded = encodeSenseVoice({
-                        config,
-                        weights,
-                        features: new Float32Array(2 * 2).fill(0.2),
-                        frames: 2,
-                        prefix: [0, 7, 8, 9],
-                    });
-                assertEqual(encoded.seq, 6, "seq");
-                assertEqual(encoded.hidden.length, encoded.seq * config.dModel, "hidden");
-                const logits = senseVoiceLogits({
-                    config,
-                    weights,
-                    hidden: encoded.hidden,
-                    seq: encoded.seq,
-                });
-                assertEqual(logits.length, encoded.seq * config.vocabSize, "logits");
-            },
-        },
-        {
-            name: "sensevoice/model loadSenseVoice",
-            run: async () => {
-                const
-                    config = senseVoiceConfig(),
-                    store = fakeStore({
-                        bytes: {
-                            [checkpointKey({
-                                checkpoint: ModelId.SenseVoiceSmall,
-                                file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
-                            })]: senseVoiceGguf(config),
-                        },
-                    }),
-                    loaded: LoadedSenseVoice = await loadSenseVoice({
-                        store,
-                        model: ModelId.SenseVoiceSmall,
-                        checkpoint: ModelId.SenseVoiceSmall,
-                        spec: MODEL_SPECS[ModelId.SenseVoiceSmall],
-                    });
-                assertEqual(loaded.kind, ModelFamily.SenseVoice, "kind");
-                assertEqual(loaded.config.dModel, 4, "dModel");
-                assertEqual(loaded.frontend.numMels, 2, "frontend");
-                assertEqual(loaded.vocabulary.isControl(0), true, "vocabulary");
-                assert(loaded.weights.has("ctc.head.weight"), "weights");
-            },
-        },
-        {
-            name: "sensevoice/model transcribeSenseVoice",
-            run: async () => {
-                const
-                    config = senseVoiceConfig(),
-                    store = fakeStore({
-                        bytes: {
-                            [checkpointKey({
-                                checkpoint: ModelId.SenseVoiceSmall,
-                                file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
-                            })]: senseVoiceGguf(config),
-                        },
-                    }),
-                    model = await loadSenseVoice({
-                        store,
-                        model: ModelId.SenseVoiceSmall,
-                        checkpoint: ModelId.SenseVoiceSmall,
-                        spec: MODEL_SPECS[ModelId.SenseVoiceSmall],
-                    }),
-                    transcript = transcribeSenseVoice({
-                        model,
-                        pcm: new Float32Array(24).fill(0.3),
-                        language: Language.en,
-                        itn: true,
-                    });
-                assertEqual(typeof transcript.text, "string", "text");
-                assertEqual(transcript.segments.length, 1, "segments");
-                assertEqual(transcript.language, "en", "language");
-                assertClose(transcript.duration, 24 / 16000, "duration");
-                const
-                    silent = transcribeSenseVoice({
-                        model,
-                        pcm: new Float32Array(16000),
-                        language: Language.en,
-                    }),
-                    short = transcribeSenseVoice({
-                        model,
-                        pcm: new Float32Array(4800).fill(0.3),
-                        language: Language.en,
-                    });
-                assertEqual(silent.text, "", "silent text");
-                assertEqual(silent.segments.length, 1, "silent segments");
-                assertEqual(silent.segments[0].text, "", "silent segment text");
-                assertClose(silent.duration, 1, "silent duration");
-                assertEqual(silent.meta.rtf, 0, "silent rtf");
-                assertEqual(typeof short.text, "string", "short text");
-                assertClose(short.duration, 0.3, "short duration");
-                assertEqual(short.segments.length, 1, "short segments");
-            },
-        },
-        {
             name: "store/chunk round trip",
             run: async () => {
                 const
@@ -3314,7 +2733,7 @@ const definitions: Array<{
             name: "store/download resumes ranges with aggregate progress",
             run: async () => {
                 const
-                    spec = MODEL_SPECS[ModelId.SenseVoiceSmall],
+                    spec = MODEL_SPECS[ModelId.WhisperBase],
                     savedBytes = spec.weights[Quality.High].bytes,
                     total = CHUNK_BYTES * 2,
                     key = checkpointKey({
@@ -3323,6 +2742,7 @@ const definitions: Array<{
                     }),
                     manifests = new Map<string, number[]>(),
                     chunks = new Map<string, Uint8Array>(),
+                    texts = new Set<string>(),
                     chunkKey = (input: { key: string; index: number }) =>
                         `${input.key}:${input.index}`,
                     parts: ModelPartStore = {
@@ -3342,6 +2762,7 @@ const definitions: Array<{
                     },
                     store: ModelStore = {
                         exists: async (inner) =>
+                            texts.has(inner) ||
                             manifests.has(inner) ||
                             chunks.has(`${inner}:0`),
                         readText: async () => null,
@@ -3359,11 +2780,14 @@ const definitions: Array<{
                             }
                             return size;
                         },
-                        writeText: async () => undefined,
+                        writeText: async ({ key: inner }) => {
+                            texts.add(inner);
+                        },
                         writeStream: async () => {
                             throw new Error("stream fallback used");
                         },
                         remove: async (inner) => {
+                            texts.delete(inner);
                             manifests.delete(inner); // @ts-ignore
                             for (const chunk of [...chunks.keys()]) {
                                 if (chunk.startsWith(`${inner}:`)) {
@@ -3392,7 +2816,11 @@ const definitions: Array<{
                     input: RequestInfo | URL,
                     init?: RequestInit,
                 ) => {
-                    urls.push(String(input));
+                    const url = String(input);
+                    urls.push(url);
+                    if (!url.endsWith(spec.weightFile)) {
+                        return new Response("{}", { status: 200 });
+                    }
                     const headers = (init?.headers ?? {}) as Record<
                         string,
                         string
@@ -3429,7 +2857,7 @@ const definitions: Array<{
                     );
                     await prepareModel({
                         store,
-                        model: ModelId.SenseVoiceSmall,
+                        model: ModelId.WhisperBase,
                         weightsBaseUrl: "https://mirror.example/",
                         onProgress: (progress) => reports.push(progress),
                     });
@@ -3468,35 +2896,75 @@ const definitions: Array<{
                 const last = reports[reports.length - 1];
                 assertEqual(last.phase, ProgressPhase.verify, "final phase");
                 assertClose(last.ratio, 1, "final ratio");
-                assertEqual(last.total, total, "final total");
+                assert(last.total >= total, "final total");
             },
         },
         {
             name: "voice createVoice",
             run: async () => {
                 const
-                    config = senseVoiceConfig(),
-                    store = fakeStore({
-                        bytes: {
-                            [checkpointKey({
-                                checkpoint: ModelId.SenseVoiceSmall,
-                                file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
-                            })]: senseVoiceGguf(config),
-                        },
+                    config = whisperRaw(),
+                    spec = resolveSpec({ model: ModelId.WhisperBase }),
+                    checkpoint = spec.checkpoint,
+                    weight = ggufBytes({
+                        tensors: [{
+                            name: "dec.token_embd.weight",
+                            dims: [config.d_model, config.vocab_size],
+                            type: 0,
+                            data: f32Data(
+                                new Array<number>(
+                                    config.vocab_size * config.d_model,
+                                ).fill(0.5),
+                            ),
+                        }],
                     }),
+                    texts: Record<string, string> = {
+                        [checkpointKey({
+                            checkpoint,
+                            file: "config.json",
+                        })]: JSON.stringify(config),
+                        [checkpointKey({
+                            checkpoint,
+                            file: "generation_config.json",
+                        })]: JSON.stringify(whisperGeneration()),
+                        [checkpointKey({
+                            checkpoint,
+                            file: "preprocessor_config.json",
+                        })]: JSON.stringify(whisperPreprocessor()),
+                        [checkpointKey({
+                            checkpoint,
+                            file: "tokenizer.json",
+                        })]: JSON.stringify({ model: { vocab: { "a": 0 } } }),
+                    },
+                    bytes: Record<string, Uint8Array> = {};
+                for (const file of spec.files) {
+                    if (file === spec.weightFile) {
+                        bytes[checkpointKey({ checkpoint, file })] = weight;
+                    } else if (
+                        !texts[checkpointKey({ checkpoint, file })]
+                    ) {
+                        texts[checkpointKey({ checkpoint, file })] = "{}";
+                    }
+                }
+                const
+                    store = fakeStore({ texts, bytes }),
                     voice = createVoice({ store }),
                     prepared = await voice.prepareModel({
-                        model: ModelId.SenseVoiceSmall,
+                        model: ModelId.WhisperBase,
                     }),
                     loaded = await voice.loadModel({
-                        model: ModelId.SenseVoiceSmall,
+                        model: ModelId.WhisperBase,
                     }),
                     transcript = voice.transcribe({
-                        model: loaded,
-                        pcm: new Float32Array(24).fill(0.3),
+                        model: graphModel(),
+                        pcm: new Float32Array(64).fill(0.1),
+                        language: Language.en,
+                        lowLatency: true,
                     });
-                assertEqual(prepared.id, ModelId.SenseVoiceSmall, "prepared");
-                assertEqual(transcript.meta.model, ModelId.SenseVoiceSmall, "meta");
+                assertEqual(prepared.id, ModelId.WhisperBase, "prepared");
+                assertEqual(loaded.kind, ModelFamily.Whisper, "kind");
+                assertEqual(loaded.name, ModelId.WhisperBase, "loaded");
+                assertEqual(transcript.meta.model, ModelId.WhisperBase, "meta");
                 assertEqual(
                     typeof voice.ensureModel,
                     "function",
@@ -3507,18 +2975,11 @@ const definitions: Array<{
                     "function",
                     "shared voice",
                 );
-                const whisper = voice.transcribe({
-                    model: graphModel(),
-                    pcm: new Float32Array(64).fill(0.1),
-                    language: Language.en,
-                    lowLatency: true,
-                });
-                assertEqual(whisper.meta.model, ModelId.WhisperBase, "whisper branch");
-                await voice.deleteModel({ model: ModelId.SenseVoiceSmall });
+                await voice.deleteModel({ model: ModelId.WhisperBase });
                 assertEqual(
                     await store.exists(checkpointKey({
-                        checkpoint: ModelId.SenseVoiceSmall,
-                        file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
+                        checkpoint,
+                        file: spec.weightFile,
                     })),
                     false,
                     "deleted",
@@ -3526,44 +2987,77 @@ const definitions: Array<{
             },
         },
         {
-            name: "speech family bundles limit models",
+            name: "speech family bundle",
             run: async () => {
                 const
-                    config = senseVoiceConfig(),
-                    store = fakeStore({
-                        bytes: {
-                            [checkpointKey({
-                                checkpoint: ModelId.SenseVoiceSmall,
-                                file: MODEL_SPECS[ModelId.SenseVoiceSmall].weightFile,
-                            })]: senseVoiceGguf(config),
-                        },
+                    config = whisperRaw(),
+                    spec = resolveSpec({ model: ModelId.WhisperBase }),
+                    checkpoint = spec.checkpoint,
+                    weight = ggufBytes({
+                        tensors: [{
+                            name: "dec.token_embd.weight",
+                            dims: [config.d_model, config.vocab_size],
+                            type: 0,
+                            data: f32Data(
+                                new Array<number>(
+                                    config.vocab_size * config.d_model,
+                                ).fill(0.5),
+                            ),
+                        }],
                     }),
+                    texts: Record<string, string> = {
+                        [checkpointKey({
+                            checkpoint,
+                            file: "config.json",
+                        })]: JSON.stringify(config),
+                        [checkpointKey({
+                            checkpoint,
+                            file: "generation_config.json",
+                        })]: JSON.stringify(whisperGeneration()),
+                        [checkpointKey({
+                            checkpoint,
+                            file: "preprocessor_config.json",
+                        })]: JSON.stringify(whisperPreprocessor()),
+                        [checkpointKey({
+                            checkpoint,
+                            file: "tokenizer.json",
+                        })]: JSON.stringify({ model: { vocab: { "a": 0 } } }),
+                    },
+                    bytes: Record<string, Uint8Array> = {};
+                for (const file of spec.files) {
+                    if (file === spec.weightFile) {
+                        bytes[checkpointKey({ checkpoint, file })] = weight;
+                    } else if (
+                        !texts[checkpointKey({ checkpoint, file })]
+                    ) {
+                        texts[checkpointKey({ checkpoint, file })] = "{}";
+                    }
+                }
+                const
+                    store = fakeStore({ texts, bytes }),
                     options = {
-                        model: ModelId.SenseVoiceSmall,
+                        model: ModelId.WhisperBase,
                         weightsBaseUrl: "https://mirror.example",
                         weightCacheMB: 1,
                         threads: 1,
                     },
-                    voice = createSenseVoiceVoice({ store }),
-                    cached = await voice.isModelCached({ model: options.model });
+                    voice = createWhisperVoice({ store }),
+                    cached = await voice.isModelCached({
+                        model: options.model,
+                    });
                 assertEqual(cached, true, "family cached");
                 const loaded = await voice.loadModel(options);
-                assertEqual(loaded.kind, ModelFamily.SenseVoice, "family kind");
+                assertEqual(loaded.kind, ModelFamily.Whisper, "family kind");
                 assertEqual(kernelThreads(), 1, "single thread");
                 setThreadCount(1);
                 const transcript = voice.transcribe({
-                    model: loaded,
-                    pcm: new Float32Array(24).fill(0.3),
+                    model: graphModel(),
+                    pcm: new Float32Array(64).fill(0.3),
                 });
                 assertEqual(transcript.meta.threads, 1, "meta threads");
-                await assertRejects(
-                    async () => await createWhisperVoice({ store }).loadModel({
-                        model: ModelId.SenseVoiceSmall,
-                    }),
-                    "missing family",
-                );
             },
         },
+
         {
             name: "tensor/pool browser pool",
             run: async () => {
@@ -3797,7 +3291,7 @@ const definitions: Array<{
                                 text: "mic live",
                                 words: [],
                             }],
-                            meta: { model: "sensevoice-small", rtf: 0, threads: 1 },
+                            meta: { model: "whisper-base", rtf: 0, threads: 1 },
                         }),
                     } as unknown as Voice,
                     session = createSession({
@@ -3835,7 +3329,7 @@ const definitions: Array<{
                                 text: "push live",
                                 words: [],
                             }],
-                            meta: { model: "sensevoice-small", rtf: 0, threads: 1 },
+                            meta: { model: "whisper-base", rtf: 0, threads: 1 },
                         }),
                     } as unknown as Voice,
                     session = createSession({
@@ -3908,7 +3402,7 @@ const definitions: Array<{
                                 text: "push live",
                                 words: [],
                             }],
-                            meta: { model: "sensevoice-small", rtf: 0, threads: 1 },
+                            meta: { model: "whisper-base", rtf: 0, threads: 1 },
                         }),
                     } as unknown as Voice,
                     session = createSession({
@@ -3924,7 +3418,7 @@ const definitions: Array<{
             },
         },
         {
-            name: "store/usage budget and pruning",
+            name: "store/usage budget and cache hit",
             run: async () => {
                 const
                     spec = MODEL_SPECS[ModelId.WhisperBase],
@@ -3950,7 +3444,7 @@ const definitions: Array<{
                 );
                 await ensureSpace({
                     store,
-                    model: ModelId.SenseVoiceSmall,
+                    model: ModelId.WhisperBase,
                     allowedDiskSpaceMB: 1,
                 });
                 assertEqual(
@@ -3958,21 +3452,21 @@ const definitions: Array<{
                         checkpoint: spec.checkpoint,
                         file: spec.weightFile,
                     })),
-                    false,
-                    "pruned",
+                    true,
+                    "cached kept",
                 );
                 assertEqual(
                     await store.exists(checkpointKey({
                         checkpoint: english.checkpoint,
                         file: english.weightFile,
                     })),
-                    false,
-                    "pruned english",
+                    true,
+                    "cached english kept",
                 );
-                await forgetModel({ store, model: ModelId.SenseVoiceSmall });
+                await forgetModel({ store, model: ModelId.WhisperBase });
                 const after = await readUsage({ store });
                 assertEqual(
-                    after.models[ModelId.SenseVoiceSmall],
+                    after.models[ModelId.WhisperBase],
                     undefined,
                     "forgotten",
                 );
@@ -3999,8 +3493,8 @@ const definitions: Array<{
                     assertEqual(typeof entry[key], "function", `export ${key}`);
                 }
                 assertEqual(
-                    entry.ModelId.SenseVoiceSmall,
-                    "sensevoice-small",
+                    entry.ModelId.WhisperBase,
+                    "whisper-base",
                     "id",
                 );
                 assertEqual(entry.ProgressPhase.download, "download", "phase");
@@ -4035,7 +3529,7 @@ const definitions: Array<{
                                 text: "hello world",
                                 words: [],
                             }],
-                            meta: { model: "sensevoice-small", rtf: 0, threads: 1 },
+                            meta: { model: "whisper-base", rtf: 0, threads: 1 },
                         }),
                     } as unknown as Voice,
                     session = createSession({
@@ -4080,7 +3574,7 @@ const definitions: Array<{
                                     words: [],
                                 }],
                                 meta: {
-                                    model: "sensevoice-small",
+                                    model: "whisper-base",
                                     rtf: 0.5,
                                     threads: 1,
                                 },

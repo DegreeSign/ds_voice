@@ -129,11 +129,6 @@ const
 module.exports = [
     browserConfig,
     familyConfig({
-        entry: "./src/transcription/entries/sensevoice.ts",
-        filename: "sensevoice.min.js",
-        library: "dsVoiceSenseVoice",
-    }),
-    familyConfig({
         entry: "./src/transcription/entries/whisper.ts",
         filename: "whisper.min.js",
         library: "dsVoiceWhisper",

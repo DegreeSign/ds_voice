@@ -52,34 +52,8 @@ const
             bytes: 58_794_272,
         },
     },
-    /** Every weight variant of the SenseVoice checkpoint. */
-    SENSEVOICE_WEIGHTS: Record<Quality, ModelWeight> = {
-        [Quality.High]: {
-            file: "SenseVoiceSmall-F16.gguf",
-            bytes: 470_412_128,
-        },
-        [Quality.Medium]: {
-            file: "SenseVoiceSmall-Q8_0.gguf",
-            bytes: 252_684_608,
-        },
-        [Quality.Low]: {
-            file: "SenseVoiceSmall-Q4_K_M.gguf",
-            bytes: 145_738_304,
-        },
-    },
     /** Every supported checkpoint. */
     MODEL_SPECS: Record<CheckpointId, ModelSpec> = {
-        [ModelId.SenseVoiceSmall]: {
-            id: ModelId.SenseVoiceSmall,
-            checkpoint: ModelId.SenseVoiceSmall,
-            repo: "handy-computer/SenseVoiceSmall-gguf",
-            family: ModelFamily.SenseVoice,
-            quality: DEFAULT_QUALITY,
-            weightFile: SENSEVOICE_WEIGHTS[Quality.High].file,
-            weightBytes: SENSEVOICE_WEIGHTS[Quality.High].bytes,
-            weights: SENSEVOICE_WEIGHTS,
-            files: [SENSEVOICE_WEIGHTS[Quality.High].file],
-        },
         [ModelId.WhisperBase]: {
             id: ModelId.WhisperBase,
             checkpoint: ModelId.WhisperBase,
@@ -106,7 +80,7 @@ const
         },
     },
     /** Every public model id, in spec order. */
-    MODEL_IDS = [ModelId.SenseVoiceSmall, ModelId.WhisperBase],
+    MODEL_IDS = [ModelId.WhisperBase],
     /** Every concrete checkpoint, in spec order. */
     CHECKPOINT_IDS = Object.keys(MODEL_SPECS) as CheckpointId[],
     /** Pick the checkpoint for one model and language. */

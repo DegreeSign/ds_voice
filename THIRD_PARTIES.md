@@ -1,9 +1,9 @@
 # Third Parties
 
-`@degreesign/voice` is an independent TypeScript runtime for the SenseVoice,
-Whisper and text to speech models listed below. It loads published model
-weights at runtime. The only upstream data it redistributes are the bundled
-MOSS reference codes and generated preview clips listed below.
+`@degreesign/voice` is an independent TypeScript runtime for the Whisper and
+text to speech models listed below. It loads published model weights at
+runtime. The only upstream data it redistributes are the bundled MOSS reference
+codes and generated preview clips listed below.
 
 The runtime code in this repository is original work licensed under the MIT
 License. See [LICENSE](LICENSE).
@@ -55,15 +55,6 @@ License. See [LICENSE](LICENSE).
 - Contents: the F16, Q8_0 and Q4_K_M GGUF conversions of the OpenAI Whisper base
   English checkpoint. The tokenizer data and configuration files are fetched
   from the original `openai/whisper-base.en` repository.
-
-### handy-computer/SenseVoiceSmall-gguf
-
-- License: FunASR Model Open Source License Agreement v1.1
-- Sources: https://huggingface.co/handy-computer/SenseVoiceSmall-gguf
-  and https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE
-- Contents: the F16, Q8_0 and Q4_K_M GGUF conversions of
-  FunAudioLLM/SenseVoiceSmall by Alibaba Group / FunAudioLLM. The tokenizer and
-  configuration are embedded in the same file.
 
 ### Luigi/MOSS-TTS-Nano-100M-GGUF
 

@@ -433,7 +433,7 @@ const BANDS = [
     { id: "dictation", title: "5 · dictation and bundles", hint: "microphone and family bundles", color: "#40657a" },
     { id: "voice", title: "6 · voice library", hint: "voices, previews, lazy weights", color: "#2f6b52" },
     { id: "engines", title: "7 · voice engines", hint: "moss transformers and codec", color: "#2a5a46" },
-    { id: "models-speech", title: "8 · speech models", hint: "whisper and sensevoice", color: "#6b5530" },
+    { id: "models-speech", title: "8 · speech models", hint: "whisper", color: "#6b5530" },
     { id: "models-data", title: "9 · weights and formats", hint: "gguf, safetensors, specs", color: "#75603a" },
     { id: "models-text", title: "10 · text and config", hint: "vocab, words, configs", color: "#5f6b3f" },
     { id: "tensor", title: "11 · tensor runtime", hint: "kernels, wasm, types", color: "#5c4a6b" },
@@ -471,21 +471,14 @@ f("audio.inputMic", "audio-input", "mic.ts", "src/audio/input/mic.ts", 279);
 f("audio.inputPad", "audio-input", "pad.ts", "src/audio/input/pad.ts", 28);
 f("audio.inputResample", "audio-input", "resample.ts", "src/audio/input/resample.ts", 72);
 f("entry", "entry", "index.ts", "src/index.ts", 69);
-f("model.configsSensevoice", "models-text", "sensevoice.ts", "src/models/configs/sensevoice.ts", 102);
-f("model.configsSpecs", "models-data", "specs.ts", "src/models/configs/specs.ts", 165);
+f("model.configsSpecs", "models-data", "specs.ts", "src/models/configs/specs.ts", 139);
 f("model.configsWhisper", "models-text", "whisper.ts", "src/models/configs/whisper.ts", 173);
 f("model.formatsGguf", "models-data", "gguf.ts", "src/models/formats/gguf.ts", 152);
 f("model.formatsGgufTensor", "models-data", "ggufTensor.ts", "src/models/formats/ggufTensor.ts", 307);
 f("model.formatsSafetensors", "models-data", "safetensors.ts", "src/models/formats/safetensors.ts", 125);
-f("model.sensevoiceCtc", "models-speech", "ctc.ts", "src/models/sensevoice/ctc.ts", 32);
-f("model.sensevoiceEncoder", "models-speech", "encoder.ts", "src/models/sensevoice/encoder.ts", 324);
-f("model.sensevoiceFbank", "models-speech", "fbank.ts", "src/models/sensevoice/fbank.ts", 180);
-f("model.sensevoiceModel", "models-speech", "model.ts", "src/models/sensevoice/model.ts", 211);
 f("model.textDtw", "models-text", "dtw.ts", "src/models/text/dtw.ts", 176);
 f("model.textWords", "models-text", "words.ts", "src/models/text/words.ts", 80);
-f("model.vocabSensevoice", "models-text", "sensevoice.ts", "src/models/vocab/sensevoice.ts", 65);
 f("model.vocabWhisper", "models-text", "whisper.ts", "src/models/vocab/whisper.ts", 113);
-f("model.weightsSensevoice", "models-data", "sensevoice.ts", "src/models/weights/sensevoice.ts", 85);
 f("model.weightsWhisper", "models-data", "whisper.ts", "src/models/weights/whisper.ts", 188);
 f("model.whisperDecoder", "models-speech", "decoder.ts", "src/models/whisper/decoder.ts", 292);
 f("model.whisperEncoder", "models-speech", "encoder.ts", "src/models/whisper/encoder.ts", 224);
@@ -518,19 +511,17 @@ f("tts.types", "voice", "types.ts", "src/speech/types.ts", 119);
 f("tts.voices", "voice", "voices.ts", "src/speech/voices.ts", 87);
 f("tensor.coreBinary", "tensor", "binary.ts", "src/tensor/core/binary.ts", 105);
 f("tensor.coreMath", "tensor", "math.ts", "src/tensor/core/math.ts", 21);
-f("tensor.coreTypes", "tensor", "types.ts", "src/tensor/core/types.ts", 1474);
+f("tensor.coreTypes", "tensor", "types.ts", "src/tensor/core/types.ts", 1347);
 f("tensor.kernelKernels", "tensor", "kernels.ts", "src/tensor/kernel/kernels.ts", 352);
 f("tensor.kernelKernelsWasm", "tensor", "kernelsWasm.ts", "src/tensor/kernel/kernelsWasm.ts", 438);
 f("tensor.kernelWasm", "tensor", "wasm.ts", "src/tensor/kernel/wasm.ts", 670);
-f("tr.bundleSenseVoice", "dictation", "senseVoice.ts", "src/transcription/bundle/senseVoice.ts", 47);
 f("tr.bundleWhisper", "dictation", "whisper.ts", "src/transcription/bundle/whisper.ts", 48);
 f("tr.coreApi", "transcription", "api.ts", "src/transcription/core/api.ts", 40);
 f("tr.coreEngine", "transcription", "engine.ts", "src/transcription/core/engine.ts", 266);
-f("tr.coreVoice", "transcription", "voice.ts", "src/transcription/core/voice.ts", 64);
+f("tr.coreVoice", "transcription", "voice.ts", "src/transcription/core/voice.ts", 48);
 f("tr.dictationController", "dictation", "controller.ts", "src/transcription/dictation/controller.ts", 556);
 f("tr.dictationIndex", "entry", "index.ts", "src/transcription/dictation/index.ts", 27);
 f("tr.dictationTypes", "dictation", "types.ts", "src/transcription/dictation/types.ts", 187);
-f("tr.entriesSensevoice", "entry", "sensevoice.ts", "src/transcription/entries/sensevoice.ts", 45);
 f("tr.entriesWhisper", "entry", "whisper.ts", "src/transcription/entries/whisper.ts", 45);
 f("tr.sessionEnv", "session", "env.ts", "src/transcription/session/env.ts", 28);
 f("tr.sessionMel", "session", "mel.ts", "src/transcription/session/mel.ts", 281);
@@ -538,11 +529,11 @@ f("tr.sessionSegment", "session", "segment.ts", "src/transcription/session/segme
 f("tr.sessionSession", "transcription", "session.ts", "src/transcription/session/session.ts", 401);
 f("tr.workerWorker", "session", "worker.ts", "src/transcription/worker/worker.ts", 181);
 f("tr.workerWorkerEntry", "session", "workerEntry.ts", "src/transcription/worker/workerEntry.ts", 4);
-f("build.webpack", "build", "webpack.config.ts", "webpack.config.ts", 144);
-f("build.package", "build", "package.json", "package.json", 82);
+f("build.webpack", "build", "webpack.config.ts", "webpack.config.ts", 139);
+f("build.package", "build", "package.json", "package.json", 81);
 f("build.samples", "build", "embed-voice-samples.cjs", "scripts/embed-voice-samples.cjs", 37);
 f("build.assets", "build", "copy-assets.cjs", "scripts/copy-assets.cjs", 14);
-f("build.harness", "build", "harness.ts", "test/verify/harness.ts", 4906);
+f("build.harness", "build", "harness.ts", "test/verify/harness.ts", 4400);
 f("build.drive", "build", "drive.cjs", "test/verify/drive.cjs", 257);
 
 n("host", "app", 0, "host app", "text · voice", "The caller owns the text, the voice and the progress.");
@@ -586,8 +577,8 @@ n("tts.enginesMossTokenizer", "create", 125, "createMossTokenizer", "(json) => M
 n("tts.enginesMossReference", "male", 68, "MOSS_MALE_REFERENCE", "Uint16Array", "Bundled male reference codes for voice cloning.");
 n("tts.enginesMossReference", "female", 70, "MOSS_FEMALE_REFERENCE", "Uint16Array", "Bundled female reference codes for voice cloning.");
 n("tts.index", "public", 2, "voice barrel", "voices · samples · download · synth", "Re-exports the voice library through the main entry.");
-n("tr.coreVoice", "create", 47, "createVoice", "(input) => Voice", "Builds a voice over one platform store.");
-n("tr.coreVoice", "get", 57, "getVoice", "() => Voice", "Returns the shared recognition voice.");
+n("tr.coreVoice", "create", 31, "createVoice", "(input) => Voice", "Builds a voice over one platform store.");
+n("tr.coreVoice", "get", 41, "getVoice", "() => Voice", "Returns the shared recognition voice.");
 n("tr.coreEngine", "create", 36, "createVoiceEngine", "(options) => Voice", "Wires the families to the shared engine.");
 n("tr.coreApi", "create", 12, "createApi", "(voice: Voice) => VoiceApi", "Builds the public recognition functions.");
 n("tr.sessionSession", "create", 52, "createSession", "(options) => TranscribeSession", "Streams audio into a recognition session.");
@@ -598,24 +589,17 @@ n("tr.sessionEnv", "detect", 5, "detectPlatform", "() => Platform", "Detects Nod
 n("tr.dictationController", "create", 229, "createDictation", "(options) => Dictation", "Headless microphone dictation controller.");
 n("tr.dictationIndex", "support", 2, "isDictationSupported", "() => boolean", "Public dictation entry.");
 n("tr.workerWorker", "serve", 166, "serveDictation", "() => void", "Serves dictation messages in a worker.");
-n("tr.bundleSenseVoice", "voice", 30, "createVoice", "() => Voice", "SenseVoice only bundle.");
 n("tr.bundleWhisper", "voice", 31, "createVoice", "() => Voice", "Whisper only bundle.");
 n("model.whisperModel", "load", 39, "loadWhisper", "(options) => Promise<LoadedWhisper>", "Parses a Whisper checkpoint.");
 n("model.whisperModel", "run", 291, "transcribeWhisper", "(options) => Transcript", "Decodes one Whisper window.");
 n("model.whisperEncoder", "encode", 67, "encode", "(options) => Float32Array", "Runs the Whisper audio encoder.");
 n("model.whisperDecoder", "step", 100, "decoderStep", "(options) => number", "One autoregressive decoder step.");
 n("model.whisperGenerate", "run", 164, "generate", "(options) => number[]", "Generates Whisper tokens.");
-n("model.sensevoiceModel", "load", 25, "loadSenseVoice", "(options) => Promise<LoadedSenseVoice>", "Parses the SenseVoice GGUF.");
-n("model.sensevoiceModel", "run", 117, "transcribeSenseVoice", "(options) => Transcript", "Decodes one SenseVoice window.");
-n("model.sensevoiceEncoder", "encode", 243, "encodeSenseVoice", "(options) => Float32Array", "Runs the SenseVoice encoder.");
-n("model.sensevoiceCtc", "ctc", 6, "decodeCtc", "(options) => string", "Collapses CTC logits into text.");
-n("model.sensevoiceFbank", "features", 70, "computeSenseVoiceFeatures", "(options) => Float32Array", "Builds SenseVoice log mel frames.");
 n("model.weightsWhisper", "weights", 104, "createWhisperWeights", "(options) => WhisperWeights", "Maps Safetensors names to Whisper.");
-n("model.weightsSensevoice", "weights", 14, "createGgufWeights", "(options) => SenseVoiceWeights", "Maps GGUF names to SenseVoice.");
 n("model.formatsGguf", "parse", 26, "parseGguf", "(options) => GgufFile", "Parses a GGUF container.");
 n("model.formatsSafetensors", "parse", 11, "parseSafetensors", "(options) => SafetensorsFile", "Parses a Safetensors container.");
 n("model.formatsGgufTensor", "read", 229, "readGgufTensor", "(options) => Float32Array", "Reads one GGUF tensor as f32.");
-n("model.configsSpecs", "resolve", 113, "resolveSpec", "(options) => ModelSpec", "Chooses one checkpoint and quality.");
+n("model.configsSpecs", "resolve", 87, "resolveSpec", "(options) => ModelSpec", "Chooses one checkpoint and quality.");
 n("model.vocabWhisper", "tokenizer", 30, "loadTokenizer", "(json) => Tokenizer", "Loads the Whisper BPE tokenizer.");
 n("model.textWords", "words", 7, "buildWords", "(options) => Word[]", "Builds word level timestamps.");
 n("tensor.kernelKernels", "linear", 238, "linear", "(options) => Float32Array", "Matrix multiply with an optional bias.");
@@ -638,7 +622,7 @@ n("build.webpack", "bundles", 129, "bundles", "browser + node", "Emits the recog
 n("build.package", "exports", 8, "exports", "one main entry", "Maps the main entry to its bundles and types.");
 n("build.samples", "script", 37, "embed", "wav to base64", "Regenerates the bundled preview module.");
 n("build.assets", "script", 13, "copy", "src to dist", "Copies the preview assets into dist.");
-n("build.harness", "definitions", 1267, "definitions", "browser suite", "Asserts every exported function in Chromium.");
+n("build.harness", "definitions", 1048, "definitions", "browser suite", "Asserts every exported function in Chromium.");
 n("build.drive", "serve", 79, "serve", "static + fixtures", "Serves the page, fixtures and fault injection.");
 
 e("host.app", "entry.api", "call");
@@ -646,19 +630,12 @@ e("entry.api", "tr.coreApi.create", "call");
 e("tr.coreApi.create", "tr.coreVoice.get", "call");
 e("tr.coreVoice.get", "tr.coreEngine.create", "call");
 e("tr.coreEngine.create", "model.whisperModel.load", "call");
-e("tr.coreEngine.create", "model.sensevoiceModel.load", "call");
 e("tr.coreApi.create", "tr.sessionSession.create", "call");
 e("tr.sessionSession.create", "model.whisperModel.run", "call");
-e("tr.sessionSession.create", "model.sensevoiceModel.run", "call");
 e("model.whisperModel.load", "model.weightsWhisper.weights", "call");
 e("model.whisperModel.run", "model.whisperGenerate.run", "call");
 e("model.whisperModel.run", "tr.sessionMel.mel", "call");
-e("model.sensevoiceModel.load", "model.weightsSensevoice.weights", "call");
-e("model.sensevoiceModel.run", "model.sensevoiceEncoder.encode", "call");
-e("model.sensevoiceModel.run", "model.sensevoiceCtc.ctc", "call");
-e("model.sensevoiceModel.run", "model.sensevoiceFbank.features", "call");
 e("model.weightsWhisper.weights", "model.formatsSafetensors.parse", "call");
-e("model.weightsSensevoice.weights", "model.formatsGguf.parse", "call");
 e("tr.sessionMel.mel", "tr.sessionMel.fft", "call");
 e("tr.sessionMel.fft", "tensor.kernelKernels.linear", "call");
 e("tr.sessionSession.create", "tr.sessionSegment.plan", "call");

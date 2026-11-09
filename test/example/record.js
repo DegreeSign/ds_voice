@@ -12,12 +12,10 @@ const
     ],
     /** Human labels for the model ids. */
     MODEL_LABELS = {
-        "sensevoice-small": "SenseVoice small",
         "whisper-base": "Whisper base",
     },
     /** Languages per model, empty means every language. */
     MODEL_LANGUAGES = {
-        "sensevoice-small": ["zh", "yue", "en", "ja", "ko"],
         "whisper-base": [],
     },
     /** Every supported model, in spec order. */

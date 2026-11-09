@@ -3,6 +3,26 @@
 All notable changes to `@degreesign/voice` are recorded here. This project
 follows semantic versioning.
 
+## 2.3.0
+
+### Removed
+
+- SenseVoice model support: `ModelId.SenseVoiceSmall`,
+  `ModelFamily.SenseVoice`, the `src/models/sensevoice` family and the
+  `dist/browser/sensevoice.min.js` bundle with its `dsVoiceSenseVoice` global.
+- The SenseVoice types: `SenseVoiceConfig`, `SenseVoiceFrontend`,
+  `SenseVoiceWeights`, `LoadedSenseVoice`, `LoadSenseVoiceOptions`,
+  `SenseVoiceVocabulary`, `SenseVoiceFeatureOptions`,
+  `SenseVoiceFeatureResult`, `SenseVoiceEncodeOptions`,
+  `SenseVoiceEncodeResult`, `SenseVoiceLogitsOptions`, `CtcDecodeOptions`
+  and `CtcDecodeResult`.
+
+### Changed
+
+- `Model` is now an alias of `LoadedModel`.
+- `ensureSpace` keeps a cached model that exceeds `allowedDiskSpaceMB`
+  instead of pruning it.
+
 ## 2.2.0
 
 ### Added

@@ -1,8 +1,8 @@
 # ds_voice
 
-Standalone TypeScript package for offline speech recognition with the SenseVoice
-and Whisper model families, published as `@degreesign/voice`. This folder is
-self contained and does not follow any host repository rules.
+Standalone TypeScript package for offline speech recognition with the Whisper
+model, published as `@degreesign/voice`. This folder is self contained and does
+not follow any host repository rules.
 
 # Skill
 Load `coding` skill of `@degreesign/skills` (probably already installed)
@@ -23,8 +23,7 @@ Load `npm` skill of `@degreesign/skills` on start (probably already installed)
   `/** */` block only to document a specific defined variable or function.
 - Indent every file with four spaces per level and end it with a single newline.
 - Never use an em dash in a file of this repository.
-- Model weights keep `THIRD_PARTIES.md` current (Apache-2.0 and the FunASR
-  Model Open Source License v1.1).
+- Model weights keep `THIRD_PARTIES.md` current (Apache-2.0).
 - Record `ChangeLog.md` only when the package gains a new export. Fixes,
   performance work and internal changes stay out of it.
 - Model weights are cached through `@degreesign/cache` on Node and through

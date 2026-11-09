@@ -234,8 +234,8 @@ const
         }
         const
             required = await estimateSize({ store, spec: wanted }),
-            candidates = stored
-                .filter((id) => id !== wanted.id)
+            candidates: ModelId[] = (stored
+                .filter((id) => id !== wanted.id) as ModelId[])
                 .sort((a, b) => {
                     const left = usage.models[a]?.lastUsed ?? 0;
                     const right = usage.models[b]?.lastUsed ?? 0;

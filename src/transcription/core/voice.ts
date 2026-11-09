@@ -1,6 +1,5 @@
-// Full voice bundle with both model families.
+// Full voice bundle.
 import { createVoiceEngine } from "./engine";
-import { loadSenseVoice, transcribeSenseVoice } from "../../models/sensevoice/model";
 import { loadWhisper, transcribeWhisper } from "../../models/whisper/model";
 import { ModelFamily, TimestampMode } from "../../tensor/core/types";
 import type {
@@ -9,23 +8,8 @@ import type {
     VoiceFamilies,
 } from "../../tensor/core/types";
 const
-    /** Both model families. */
+    /** Supported model family. */
     families: VoiceFamilies = {
-        [ModelFamily.SenseVoice]: {
-            load: async (options) => await loadSenseVoice(options),
-            transcribe: (options) => {
-                const model = options.model;
-                if (model.kind !== ModelFamily.SenseVoice) {
-                    throw new Error("sensevoice model expected");
-                }
-                return transcribeSenseVoice({
-                    model,
-                    pcm: options.pcm,
-                    language: options.language,
-                    itn: options.itn,
-                });
-            },
-        },
         [ModelFamily.Whisper]: {
             load: async (options) => await loadWhisper(options),
             transcribe: (options) => {

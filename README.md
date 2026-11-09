@@ -1,8 +1,8 @@
 # @degreesign/voice
 
-Offline speech recognition for the browser and Node.js with the SenseVoice and
-Whisper model families, running fully locally with no Python, no ONNX Runtime
-and no runtime dependencies.
+Light offline speech to text and text to speech for the browser and Node.js,
+running fully locally with no Python, no ONNX Runtime and no runtime
+dependencies.
 
 [![npm version](https://img.shields.io/npm/v/@degreesign/voice.svg)](https://www.npmjs.com/package/@degreesign/voice)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](#licensing)
@@ -53,18 +53,15 @@ yarn add @degreesign/voice
 pnpm add @degreesign/voice
 ```
 
-The package builds to four bundles from one source:
+The package builds to three bundles from one source:
 
 - `dist/node/degreesign.node.min.js`, the CommonJS entry used by Node.
-- `dist/browser/degreesign.min.js`, the UMD entry with both model families,
-  exporting the `dsVoice` global.
-- `dist/browser/sensevoice.min.js`, the UMD entry with only SenseVoice,
-  exporting `dsVoiceSenseVoice`.
+- `dist/browser/degreesign.min.js`, the full UMD entry, exporting the `dsVoice`
+  global.
 - `dist/browser/whisper.min.js`, the UMD entry with only Whisper, exporting
   `dsVoiceWhisper`.
 
-A worker that serves one family can load the matching bundle and skip the other
-family, its tokenizer and its graph. The full bundle keeps the complete API.
+The full bundle keeps the complete API.
 
 Build from source with `yarn build`; typecheck with `yarn typecheck`.
 
@@ -295,7 +292,7 @@ The engine entry exports four functions and six enums.
 | `preloadVoice` | `preloadVoice(options?)` | Download and load a model ahead of time. |
 | `loadModel` | `loadModel(options?)` | Download a model when needed and return it loaded. |
 | `isModelCached` | `isModelCached(options?)` | True when every file of the model is stored. |
-| `ModelId` | `SenseVoiceSmall`, `WhisperBase` | The supported model selection. |
+| `ModelId` | `WhisperBase` | The supported model selection. |
 | `Language` | every language the bundled models support, plus `auto` | The supported language selection. |
 | `Quality` | `High`, `Medium`, `Low` | Weight precision, `High` (F16) by default. |
 | `ThreadCount` | `Two`, `Four`, `Eight` | Worker threads, `Four` by default. |
@@ -484,7 +481,6 @@ requests to enable resumable, parallel downloads.
 
 | `ModelId` | Family | Languages |
 | --------- | ------ | --------- |
-| `SenseVoiceSmall` | sensevoice | zh, yue, en, ja, ko |
 | `WhisperBase` | whisper | multilingual, English |
 
 Whisper base is the default. It is the autoregressive encoder and decoder with
@@ -492,21 +488,18 @@ text, segment and word timestamps, DTW word alignment and long-form chunking.
 The Whisper selection uses `handy-computer/whisper-base.en-gguf` with the
 `openai/whisper-base.en` text files for an explicit `Language.en`, and
 `handy-computer/whisper-base-gguf` with the `openai/whisper-base` text files for
-every other language, including automatic detection. SenseVoice small is
-available with `model: ModelId.SenseVoiceSmall`. It is a non-autoregressive
-SAN-M encoder with a CTC head, a kaldi fbank plus LFR frontend and a
-SentencePiece vocabulary.
+every other language, including automatic detection.
 
 ### Weight quality
 
 Every checkpoint is published as F16, Q8_0 and Q4_K_M. `Quality` selects the
 weight file. `Quality.High` is the default.
 
-| `Quality` | Weights | Whisper base | Whisper base.en | SenseVoiceSmall |
-| --------- | ------- | ------------ | --------------- | --------------- |
-| `High` | F16 | 151 MB | 151 MB | 470 MB |
-| `Medium` | Q8_0 | 85 MB | 85 MB | 253 MB |
-| `Low` | Q4_K_M | 59 MB | 59 MB | 146 MB |
+| `Quality` | Weights | Whisper base | Whisper base.en |
+| --------- | ------- | ------------ | --------------- |
+| `High` | F16 | 151 MB | 151 MB |
+| `Medium` | Q8_0 | 85 MB | 85 MB |
+| `Low` | Q4_K_M | 59 MB | 59 MB |
 
 All three formats are dequantized to F32 on first access before the kernels
 run, so the transcription kernels are the same at every quality. Quality
@@ -549,12 +542,10 @@ seconds. Only a live session uses wall clock updates.
 ## Disk budget
 
 `allowedDiskSpaceMB` caps the total bytes this package stores. Before a download
-the package estimates what the model needs. When the current cache plus the new
-model would exceed the cap, other models are deleted least recently used first.
-A model already in the cache is never pruned. When one model alone exceeds the
-cap it is still loaded, and every other model is removed to make room. The
-default F16 checkpoint is 151 MB for Whisper base and 470 MB for SenseVoice
-small; `Quality.Low` reduces those to 59 MB and 146 MB.
+the package estimates what the model needs. A model already in the cache is
+never pruned, and a model that alone exceeds the cap is still loaded. The
+default F16 checkpoint is 151 MB for Whisper base; `Quality.Low` reduces it to
+59 MB.
 
 ## Storage
 
@@ -565,7 +556,7 @@ The model files are cached per platform:
 
 Weight files are stored as fixed size binary chunks with a small manifest, and
 text files as plain JSON. On browsers the chunks live in IndexedDB as binary
-records, so a 146 MB model occupies about 146 MB instead of base64 text. A
+records, so a 59 MB model occupies about 59 MB instead of base64 text. A
 `usage.json` record tracks the size and last use of each model for the disk
 budget. The two libraries are bundled into the output, so the published package
 has no runtime dependencies.
@@ -608,7 +599,7 @@ up with the update cadence.
 
 The committed map at [docs/architecture.html](docs/architecture.html) shows the
 package as bands of files and functions: the recognition entry, the voice
-library, the model families, the tensor runtime, the platform stores, the audio
+library, the model family, the tensor runtime, the platform stores, the audio
 input and the build. It is one offline HTML file with no external request. Open
 it directly in a browser and use the panel to trace a call back to the entry.
 
@@ -616,8 +607,8 @@ it directly in a browser and use the panel to trace a call back to the entry.
 
 ### What is @degreesign/voice?
 
-A self contained TypeScript package that runs the SenseVoice and Whisper
-speech recognition models locally on CPU.
+A self contained TypeScript package that runs the Whisper speech recognition
+model locally on CPU.
 
 ### Is it free?
 
@@ -627,8 +618,8 @@ weights keep their own licenses, listed under [Licensing](#licensing).
 ### Does it run in the browser and Node.js?
 
 Yes. One entry autodetects the runtime and selects a filesystem or IndexedDB
-store, and webpack emits a CommonJS bundle, a full UMD bundle and one UMD
-bundle per model family.
+store, and webpack emits a CommonJS bundle, a full UMD bundle and a Whisper
+only UMD bundle.
 
 ### Does it need Python or ONNX Runtime?
 
@@ -647,15 +638,14 @@ cache in IndexedDB through `@degreesign/storage`.
 ## Licensing
 
 Whisper weights and tokenizer data are Apache-2.0, and the F16, Q8_0 and
-Q4_K_M GGUF conversions keep that license. The SenseVoice F16, Q8_0 and Q4_K_M
-weights are distributed under the FunASR Model Open Source License Agreement
-v1.1. The bundled MP3 decoder is `minimp3`, which is CC0, together with the
-Apache-2.0 `minimp3-wasm` bindings. See `THIRD_PARTIES.md`. The runtime code in
-this folder is original work, licensed under MIT. See `LICENSE`.
+Q4_K_M GGUF conversions keep that license. The bundled MP3 decoder is
+`minimp3`, which is CC0, together with the Apache-2.0 `minimp3-wasm` bindings.
+See `THIRD_PARTIES.md`. The runtime code in this folder is original work,
+licensed under MIT. See `LICENSE`.
 
 ## Keywords
 
 `@degreesign/voice`, offline speech recognition, speech to text, speech
-recognition, transcription, ASR, Whisper, SenseVoice, CTC, local inference,
-on device, streaming, microphone, browser, Node.js, TypeScript, no Python,
-no ONNX Runtime.
+recognition, transcription, ASR, Whisper, local inference, on device,
+streaming, microphone, browser, Node.js, TypeScript, no Python, no ONNX
+Runtime.

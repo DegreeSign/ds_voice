@@ -143,8 +143,6 @@ export interface ParseSafetensorsOptions {
 
 /** Model selection exposed by the package. */
 export enum ModelId {
-    /** SenseVoice small, 5 languages, the default. */
-    SenseVoiceSmall = "sensevoice-small",
     /** Whisper base, English uses the English only checkpoint. */
     WhisperBase = "whisper-base",
 }
@@ -176,8 +174,6 @@ export enum ThreadCount {
 export enum ModelFamily {
     /** Autoregressive encoder and decoder. */
     Whisper = "whisper",
-    /** Non-autoregressive SAN-M encoder with a CTC head. */
-    SenseVoice = "sensevoice",
 }
 
 /** Languages supported by the bundled models, `auto` detects one. */
@@ -699,7 +695,6 @@ export interface VoiceFamily {
 
 /** Model families bundled into one entry. */
 export interface VoiceFamilies {
-    [ModelFamily.SenseVoice]?: VoiceFamily;
     [ModelFamily.Whisper]?: VoiceFamily;
 }
 
@@ -905,67 +900,8 @@ export interface CreateGgufWeightsOptions {
     cacheBytes?: number;
 }
 
-/** SenseVoice SAN-M encoder shape. */
-export interface SenseVoiceConfig {
-    dInput: number;
-    dModel: number;
-    heads: number;
-    headDim: number;
-    ffnDim: number;
-    kernelSize: number;
-    /** Main tier blocks, the projection block included. */
-    mainBlocks: number;
-    /** Second tier blocks after the inter-tier norm. */
-    tpBlocks: number;
-    vocabSize: number;
-    /** LayerNorm epsilon, 1e-12 for this family. */
-    eps: number;
-    /** Prefix embedding row per language, auto included. */
-    languageIds: Map<string, number>;
-    /** Prefix embedding rows for the event and emotion tokens. */
-    eventEmotion: [number, number];
-    withItn: number;
-    withoutItn: number;
-}
-
-/** SenseVoice kaldi fbank frontend settings. */
-export interface SenseVoiceFrontend {
-    samplingRate: number;
-    numMels: number;
-    nFft: number;
-    winLength: number;
-    hopLength: number;
-    lfrM: number;
-    lfrN: number;
-    upscale: number;
-    /** Per feature shift, dInput wide. */
-    shift: Float32Array;
-    /** Per feature scale, dInput wide. */
-    scale: Float32Array;
-}
-
-/** Read only f32 view over GGUF weights. */
-export interface SenseVoiceWeights {
-    names(): string[];
-    has(name: string): boolean;
-    /** PyTorch style row-major shape, outermost first. */
-    shape(name: string): number[];
-    f32(name: string): Float32Array;
-}
-
-/** Loaded SenseVoice bundle. */
-export interface LoadedSenseVoice {
-    kind: ModelFamily.SenseVoice;
-    name: ModelId;
-    config: SenseVoiceConfig;
-    frontend: SenseVoiceFrontend;
-    tokenizer: Tokenizer;
-    vocabulary: SenseVoiceVocabulary;
-    weights: SenseVoiceWeights;
-}
-
-/** Loaded model of any family. */
-export type Model = LoadedModel | LoadedSenseVoice;
+/** Loaded model. */
+export type Model = LoadedModel;
 
 /** Options for reading the text files of a checkpoint. */
 export interface CheckpointStoreOptions {
@@ -982,9 +918,6 @@ export interface StoreModelOptions extends CheckpointStoreOptions {
     /** F32 weight cache cap in MB, defaults to the checkpoint. */
     weightCacheMB?: number;
 }
-
-/** Options for loading a SenseVoice model from a store. */
-export interface LoadSenseVoiceOptions extends StoreModelOptions {}
 
 /** Options for loading a model from the store. */
 export interface LoadModelOptions extends ModelOptionsBase {}
@@ -1321,66 +1254,6 @@ export interface BuildWordsOptions {
     tokenTimes: Float32Array;
     tokenizer: Tokenizer;
     timeOffset: number;
-}
-
-/** SentencePiece vocabulary built from GGUF metadata. */
-export interface SenseVoiceVocabulary {
-    tokenizer: Tokenizer;
-    isControl(id: number): boolean;
-    /** Language for a control token, or null. */
-    languageOf(id: number): Language | null;
-}
-
-/** Options for the SenseVoice feature frontend. */
-export interface SenseVoiceFeatureOptions {
-    pcm: Float32Array;
-    frontend: SenseVoiceFrontend;
-}
-
-/** SenseVoice feature output, frames by dInput. */
-export interface SenseVoiceFeatureResult {
-    values: Float32Array;
-    frames: number;
-}
-
-/** Options for the SenseVoice encoder. */
-export interface SenseVoiceEncodeOptions {
-    config: SenseVoiceConfig;
-    weights: SenseVoiceWeights;
-    /** Frames by dInput, row major. */
-    features: Float32Array;
-    frames: number;
-    /** Four prefix embedding rows, lid, event, emotion, itn. */
-    prefix: number[];
-}
-
-/** SenseVoice encoder output. */
-export interface SenseVoiceEncodeResult {
-    hidden: Float32Array;
-    seq: number;
-}
-
-/** Options for the SenseVoice CTC head. */
-export interface SenseVoiceLogitsOptions {
-    config: SenseVoiceConfig;
-    weights: SenseVoiceWeights;
-    hidden: Float32Array;
-    seq: number;
-}
-
-/** Options for a greedy CTC decode. */
-export interface CtcDecodeOptions {
-    /** Frames by vocabulary, row major. */
-    logits: Float32Array;
-    frames: number;
-    vocabSize: number;
-    blankId: number;
-}
-
-/** Result of a greedy CTC decode. */
-export interface CtcDecodeResult {
-    ids: number[];
-    frames: number[];
 }
 
 /** Precomputed Bluestein FFT plan for one transform size. */
